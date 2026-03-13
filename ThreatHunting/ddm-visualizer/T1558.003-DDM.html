@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>T1558.003 Kerberoasting — Detection Data Model (VanVleet Style)</title>
+  <title>T1558.003 Kerberoasting — Detection Data Model (Expanded)</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     * { margin: 0; }
@@ -18,166 +18,250 @@
   <script type="text/babel">
     const { useState } = React;
 
-    // LEFT-TO-RIGHT flow like VanVleet
-    // Circles: Green = attacker/source, Blue = system/DC, Yellow = detection, Red = blind spot
+    // EXPANDED VIEW: Operations, APIs, and System Processes as distinct nodes
+    // Node types: op (green), api (purple), protocol (orange), system (blue), detect (yellow), artifact (gray), blind (red)
 
     const NODES = [
-      // Column 1 - Entry Point
-      { id: "creds", label: "Domain", sub: "Credentials", x: 70, y: 300, r: 42, type: "entry",
-        api: "Any authenticated domain user session",
-        artifact: "Existing TGT in LSASS Kerberos cache",
-        desc: "Any authenticated domain user session is sufficient. A valid TGT already exists in the LSASS Kerberos cache from normal logon. No privilege escalation needed before beginning the attack.",
-        src: "MITRE ATT&CK T1558.003 — attack.mitre.org/techniques/T1558/003/" },
+      // ═══════════════════════════════════════════════════════════════
+      // ROW 1: LDAP Query Windows Path
+      // ═══════════════════════════════════════════════════════════════
+      { id: "creds", label: "Domain Creds", x: 60, y: 100, r: 36, type: "entry",
+        desc: "Any authenticated domain user. TGT already in LSASS from normal logon.",
+        src: "MITRE ATT&CK T1558.003" },
 
-      // Column 2 - SPN Enumeration
-      { id: "lw", label: "LDAP Query", sub: "Windows", x: 220, y: 120, r: 38, type: "op",
-        api: "DirectorySearcher → filter: (servicePrincipalName=*)",
-        artifact: "LDAP traffic port 389 · Event ID 1644 (if LDAP diag enabled)",
-        desc: "Rubeus and PowerView use System.DirectoryServices.DirectorySearcher with LDAP filter (samAccountType=805306368)(servicePrincipalName=*) to find kerberoastable accounts. The filter itself is anomalous — legitimate admin tools rarely issue this wildcard SPN query.",
-        src: "Atomic Red Team T1558.003; GhostPack/Rubeus — github.com/GhostPack/Rubeus" },
+      { id: "rubeus_enum", label: "Rubeus", sub: "kerberoast", x: 160, y: 100, r: 32, type: "op",
+        desc: "Rubeus kerberoast command enumerates SPNs and requests TGS tickets.",
+        src: "GhostPack/Rubeus" },
 
-      { id: "ll", label: "LDAP Query", sub: "Linux/Remote", x: 220, y: 220, r: 38, type: "op",
-        api: "Raw LDAP bind + search via Impacket / NetExec",
-        artifact: "LDAP traffic port 389/636 from non-Windows host",
-        desc: "Impacket issues a raw LDAP bind on port 389/636 followed by a search using the same SPN wildcard filter. Traffic originating from a Linux host to LDAP port 389 on a DC targeting servicePrincipalName=* is a strong anomaly in most environments.",
-        src: "Impacket GetUserSPNs.py — github.com/fortra/impacket; HackTricks Kerberoast" },
+      { id: "dir_searcher", label: "DirectorySearcher", x: 280, y: 100, r: 34, type: "api",
+        desc: "System.DirectoryServices.DirectorySearcher .NET class queries AD via LDAP.",
+        src: "Microsoft .NET docs" },
 
-      { id: "sp", label: "setspn.exe", sub: "LOTL", x: 220, y: 320, r: 38, type: "op",
-        api: "DsGetSpn() Win32 API → LDAP query",
-        artifact: "Process creation: setspn.exe -Q */* · LDAP port 389",
-        desc: "setspn.exe -T <domain> -Q */* calls DsGetSpn() which issues an LDAP query. Process creation of setspn.exe with -Q */* arguments is detectable via Sysmon EID 1 or EDR process telemetry. No elevated privileges required.",
-        src: "Microsoft setspn.exe docs; Atomic Red Team T1558.003" },
+      { id: "ldap_389", label: "LDAP :389", x: 400, y: 100, r: 30, type: "protocol",
+        desc: "LDAP query to port 389 with filter (servicePrincipalName=*).",
+        src: "RFC 4511" },
 
-      { id: "pn", label: "Passive", sub: "Capture", x: 220, y: 500, r: 38, type: "blind",
-        api: "No API call — passive packet capture only",
-        artifact: "⚠ No LDAP query · No Event ID 4769 · NDR only",
-        desc: "BLIND SPOT: Attacker with network access captures KRB_TGS_REP packets passively using Wireshark or tcpdump. No LDAP query is issued. No TGS-REQ is made by the attacker. Event ID 4769 never fires. Only detectable via NDR/full packet capture.",
-        src: "MITRE T1558.003; nidem/kerberoast extracttgsrepfrompcap.py — github.com/nidem/kerberoast" },
+      { id: "krb_token", label: "KerberosRequestor", sub: "SecurityToken", x: 520, y: 100, r: 38, type: "api",
+        desc: "System.IdentityModel.Tokens.KerberosRequestorSecurityToken requests TGS.",
+        src: "Microsoft .NET docs" },
 
-      // Column 3 - TGS Request Methods
-      { id: "r4", label: "TGS-REQ", sub: "RC4 Downgrade", x: 400, y: 120, r: 38, type: "op",
-        api: "KerberosRequestorSecurityToken() OR raw TGS-REQ etype 23",
-        artifact: "KRB_TGS_REQ on port 88 · etype 0x17 in request",
-        desc: "Most tools default to requesting etype 23 (RC4_HMAC_MD5). Via Windows .NET, KerberosRequestorSecurityToken() calls AcquireCredentialsHandle('Kerberos') then InitializeSecurityContext(). Via Rubeus, a raw KRB_TGS_REQ is crafted directly, bypassing Windows Kerberos APIs entirely.",
-        src: "TrustedSec Orpheus 2025; ired.team Kerberoasting; SpecterOps Kerberoasting Revisited 2019" },
+      { id: "acq_creds", label: "AcquireCreds", sub: "Handle()", x: 640, y: 100, r: 34, type: "api",
+        desc: "Windows SSPI AcquireCredentialsHandle('Kerberos') for TGS-REQ.",
+        src: "Microsoft SSPI docs" },
 
-      { id: "ae", label: "TGS-REQ", sub: "AES Stealth", x: 400, y: 220, r: 38, type: "op",
-        api: "Modified Impacket kerberosv5.py → raw TGS-REQ etype 18",
-        artifact: "KRB_TGS_REQ port 88 · etype 0x12 · blends w/ normal",
-        desc: "Modified Impacket kerberosv5.py forces etype 18 (AES256) in the TGS-REQ. The resulting Event ID 4769 shows TicketEncryptionType 0x12 rather than 0x17, bypassing RC4-based detection rules. Ticket blends with normal Kerberos traffic.",
-        src: "TrustedSec — Bypassing Kerberoast Detections with Orpheus, 2025 — trustedsec.com" },
+      { id: "tgs_req_1", label: "TGS-REQ", sub: "etype 0x17", x: 760, y: 100, r: 32, type: "protocol",
+        desc: "Kerberos TGS-REQ on port 88 requesting RC4 (etype 23).",
+        src: "RFC 4120" },
 
-      { id: "to", label: "TGS-REQ", sub: "Ticket Opts", x: 400, y: 320, r: 38, type: "op",
-        api: "Rubeus raw TGS-REQ with modified TicketOptions field",
-        artifact: "KRB_TGS_REQ TicketOptions 0x40800000 vs normal 0x40810000",
-        desc: "Rubeus crafts a raw TGS-REQ with TicketOptions field set to 0x40800000. Normal AD Kerberos traffic uses 0x40810000. The difference is the Renewable-ok flag. Attackers who set options to match normal traffic evade TicketOptions-based detection signatures.",
-        src: "Intrinsec — Kerberos OPSEC Part 1, 2023 — intrinsec.com" },
+      // ═══════════════════════════════════════════════════════════════
+      // ROW 2: Impacket / Linux Path
+      // ═══════════════════════════════════════════════════════════════
+      { id: "impacket", label: "Impacket", sub: "GetUserSPNs", x: 160, y: 200, r: 34, type: "op",
+        desc: "Impacket GetUserSPNs.py remotely enumerates SPNs via LDAP.",
+        src: "fortra/impacket" },
 
-      { id: "td", label: "TGS-REQ", sub: "tgtdeleg", x: 400, y: 420, r: 38, type: "op",
-        api: "GSS-API fake delegation → AcquireCredentialsHandle() → RC4 TGS-REQ",
-        artifact: "KRB_TGS_REQ with S4U2Self · etype 0x17 · patched WS2019+",
-        desc: "Rubeus /tgtdeleg uses the Kerberos GSS-API via AcquireCredentialsHandle() to request a fake unconstrained delegation TGT (kekeo trick). This TGT is then used to craft a raw TGS-REQ specifying only RC4, enabling RC4 ticket retrieval even for AES-configured accounts. Patched on Windows Server 2019+.",
-        src: "SpecterOps — Kerberoasting Revisited, 2019 — specterops.io; gentilkiwi/kekeo" },
+      { id: "ldap_bind", label: "LDAP Bind", x: 280, y: 200, r: 30, type: "api",
+        desc: "Raw LDAP simple bind with plaintext creds or NT hash.",
+        src: "Impacket ldap.py" },
 
-      // Column 4 - DC Response (System + Detection)
-      { id: "dc", label: "DC Process", sub: "TGS-REQ", x: 580, y: 220, r: 42, type: "system",
-        api: "KDC: LookupAccountName() → GetUserSPNs → EncryptTicket(service acct key)",
-        artifact: "Event ID 4769 fired · ticket encrypted with svc acct NTLM hash",
-        desc: "The Domain Controller's KDC service receives the TGS-REQ, looks up the service account by SPN, and encrypts the ticket using the service account's password-derived key (NTLM hash for RC4, AES key for AES). This is the point where Event ID 4769 fires.",
-        src: "Microsoft Kerberos KDC docs; RFC 4120" },
+      { id: "ldap_636", label: "LDAPS :636", x: 400, y: 200, r: 30, type: "protocol",
+        desc: "LDAP over TLS on port 636 from non-Windows host.",
+        src: "RFC 4511" },
 
-      { id: "ev", label: "Event 4769", sub: "OPTIMAL", x: 580, y: 340, r: 50, type: "detect",
-        api: "Security log on DC — KRB_TGS_REP issued",
-        artifact: "ServiceName, ClientAddress, TicketEncryptionType, TicketOptions",
-        desc: "OPTIMAL DETECTION NODE. The DC fires Event ID 4769 for every KRB_TGS_REQ it receives. Key fields: ServiceName (look for user accounts not machine accounts), ClientAddress (source IP), TicketEncryptionType (0x17=RC4, 0x12=AES256), TicketOptions (0x40800000=Rubeus default). Filters: exclude krbtgt, exclude *$ accounts, success only (0x0). Covers all 4 active request procedures. Blind to passive PCAP path.",
-        src: "MITRE ATT&CK DET0157 — attack.mitre.org/detectionstrategies/DET0157/; Microsoft Event 4769 docs" },
+      { id: "raw_tgs", label: "Raw TGS-REQ", sub: "kerberosv5.py", x: 520, y: 200, r: 36, type: "api",
+        desc: "Impacket crafts raw TGS-REQ bypassing Windows Kerberos APIs.",
+        src: "Impacket kerberosv5.py" },
 
-      // Column 5 - Ticket Storage & Extraction
-      { id: "st", label: "Store in", sub: "LSASS", x: 760, y: 220, r: 38, type: "system",
-        api: "LsaCallAuthenticationPackage() → KerbSubmitTicketMessage",
-        artifact: "TGS blob in LSASS Kerberos ticket cache — Sysmon Event ID 10",
-        desc: "After the KRB_TGS_REP is received, Windows calls LsaCallAuthenticationPackage() with KerbSubmitTicketMessage to store the ticket in the LSASS Kerberos ticket cache. The ticket blob is now resident in LSASS memory. Sysmon EID 10 (process access) may fire if extraction tools access LSASS at this point.",
-        src: "Microsoft LSASS / Kerberos SSP docs; Sysmon EID 10" },
+      { id: "tgs_req_aes", label: "TGS-REQ", sub: "etype 0x12", x: 640, y: 200, r: 32, type: "protocol",
+        desc: "TGS-REQ with AES256 (etype 18) — blends with normal traffic.",
+        src: "TrustedSec Orpheus 2025" },
 
-      { id: "me", label: "Extract", sub: "Memory", x: 760, y: 340, r: 38, type: "op",
-        api: "LsaCallAuthenticationPackage() → KerbRetrieveEncodedTicketMessage",
-        artifact: "Sysmon EID 10: LSASS access · sekurlsa::tickets in Mimikatz",
-        desc: "Mimikatz sekurlsa::tickets and Rubeus dump both call LsaCallAuthenticationPackage() with KerbRetrieveEncodedTicketMessage to pull the raw ticket blob from LSASS. This LSASS memory access is detectable via Sysmon EID 10 (process access to lsass.exe) or EDR LSASS protection alerts.",
-        src: "ired.team Kerberoasting; gentilkiwi/mimikatz — github.com/gentilkiwi/mimikatz; Sysmon EID 10" },
+      // ═══════════════════════════════════════════════════════════════
+      // ROW 3: setspn.exe / LOTL Path
+      // ═══════════════════════════════════════════════════════════════
+      { id: "setspn", label: "setspn.exe", sub: "-Q */*", x: 160, y: 300, r: 34, type: "op",
+        desc: "Native Windows binary enumerates SPNs. Living-off-the-land.",
+        src: "Microsoft setspn.exe docs" },
 
-      { id: "do", label: "Direct", sub: "Output", x: 760, y: 440, r: 38, type: "op",
-        api: "Rubeus/Impacket write $krb5tgs$ hash to stdout/file — no LSASS touch",
-        artifact: "$krb5tgs$23$ (RC4) or $krb5tgs$18$ (AES256) · no Sysmon EID 10",
-        desc: "Rubeus and Impacket write the $krb5tgs$ hash directly to stdout or file without touching LSASS at all. No Sysmon EID 10 fires. The hash is captured at the network/tool output layer. This path produces no LSASS-based artifacts and bypasses EDR LSASS protection entirely.",
-        src: "HackTricks Kerberoast; GhostPack/Rubeus — github.com/GhostPack/Rubeus" },
+      { id: "dsgetspn", label: "DsGetSpn()", x: 280, y: 300, r: 32, type: "api",
+        desc: "Win32 DsGetSpn() API issues LDAP query for SPNs.",
+        src: "Microsoft Win32 API docs" },
 
-      { id: "pe", label: "PCAP", sub: "Extract", x: 580, y: 500, r: 38, type: "blind",
-        api: "extracttgsrepfrompcap.py parses KRB_TGS_REP enc-part from pcap",
-        artifact: "⚠ No host artifacts · no logs · NDR/PCAP source only",
-        desc: "BLIND SPOT: nidem/kerberoast extracttgsrepfrompcap.py parses the enc-part of KRB_TGS_REP packets directly from a PCAP file. No host execution on target. No LSASS access. No Windows events of any kind. Only detectable if full packet capture exists and is analyzed.",
-        src: "nidem/kerberoast — github.com/nidem/kerberoast; Netresec PCAP blog 2019" },
+      { id: "sysmon_1", label: "Sysmon 1", sub: "Process Create", x: 400, y: 300, r: 30, type: "artifact",
+        desc: "Sysmon Event ID 1: setspn.exe process creation with -Q */* args.",
+        src: "Sysmon docs" },
 
-      // Column 6 - Offline Cracking
-      { id: "cr", label: "Crack", sub: "Offline", x: 920, y: 400, r: 45, type: "blind",
-        api: "hashcat -m 13100 (RC4) / -m 19700 (AES256) — no network comms",
-        artifact: "⚠ Zero DC events · zero network traffic · prevention only",
-        desc: "BLIND SPOT: Cracking is fully off-network on attacker hardware. hashcat -m 13100 for RC4 ($krb5tgs$23$) reaches billions of guesses/sec on modern GPUs. hashcat -m 19700 for AES256 ($krb5tgs$18$) is slower but viable against weak passwords. Zero DC events. Zero network traffic. Mitigation is preventive only: gMSA accounts, strong passwords (25+ chars), AES enforcement.",
-        src: "HackTricks; ADSecurity Metcalf 2015 — adsecurity.org/?p=2293; Netwrix Kerberoasting" },
+      // ═══════════════════════════════════════════════════════════════
+      // ROW 4: tgtdeleg Path
+      // ═══════════════════════════════════════════════════════════════
+      { id: "rubeus_deleg", label: "Rubeus", sub: "/tgtdeleg", x: 160, y: 400, r: 34, type: "op",
+        desc: "Rubeus /tgtdeleg uses GSS-API fake delegation trick.",
+        src: "GhostPack/Rubeus; kekeo" },
+
+      { id: "gss_api", label: "GSS-API", x: 280, y: 400, r: 30, type: "api",
+        desc: "Kerberos GSS-API for fake unconstrained delegation TGT.",
+        src: "RFC 2743" },
+
+      { id: "acq_creds_2", label: "AcquireCreds", sub: "Handle()", x: 400, y: 400, r: 34, type: "api",
+        desc: "SSPI AcquireCredentialsHandle() to force RC4 TGS-REQ.",
+        src: "Microsoft SSPI docs" },
+
+      { id: "tgs_req_deleg", label: "TGS-REQ", sub: "S4U2Self", x: 520, y: 400, r: 32, type: "protocol",
+        desc: "TGS-REQ with S4U2Self extension, etype 0x17. Patched WS2019+.",
+        src: "SpecterOps 2019" },
+
+      // ═══════════════════════════════════════════════════════════════
+      // CENTER: DC Processing & Detection
+      // ═══════════════════════════════════════════════════════════════
+      { id: "kdc", label: "KDC Service", x: 880, y: 200, r: 40, type: "system",
+        desc: "Domain Controller Kerberos Distribution Center receives TGS-REQ.",
+        src: "Microsoft KDC docs" },
+
+      { id: "lookup_acct", label: "LookupAccount", sub: "Name()", x: 1000, y: 140, r: 34, type: "api",
+        desc: "KDC looks up service account by SPN in Active Directory.",
+        src: "Microsoft Win32 API" },
+
+      { id: "encrypt_tkt", label: "EncryptTicket", sub: "(svc key)", x: 1000, y: 260, r: 36, type: "api",
+        desc: "KDC encrypts TGS ticket with service account's password hash.",
+        src: "RFC 4120; MS-KILE" },
+
+      { id: "ev_4769", label: "Event 4769", sub: "TGS Issued", x: 1120, y: 200, r: 44, type: "detect",
+        desc: "OPTIMAL: Security log fires for every TGS-REQ. Key fields: ServiceName, ClientAddress, TicketEncryptionType, TicketOptions.",
+        src: "MITRE DET0157; Microsoft Event 4769" },
+
+      // ═══════════════════════════════════════════════════════════════
+      // RIGHT: Response, Storage, Extraction
+      // ═══════════════════════════════════════════════════════════════
+      { id: "tgs_rep", label: "TGS-REP", sub: "port 88", x: 1240, y: 200, r: 34, type: "protocol",
+        desc: "KRB_TGS_REP returns encrypted service ticket to client.",
+        src: "RFC 4120" },
+
+      { id: "lsa_submit", label: "LsaCallAuth", sub: "SubmitTicket", x: 1360, y: 140, r: 36, type: "api",
+        desc: "LsaCallAuthenticationPackage() with KerbSubmitTicketMessage stores ticket.",
+        src: "Microsoft LSASS docs" },
+
+      { id: "lsass", label: "LSASS", sub: "Ticket Cache", x: 1480, y: 140, r: 38, type: "system",
+        desc: "TGS blob stored in LSASS Kerberos ticket cache in memory.",
+        src: "Microsoft Kerberos SSP" },
+
+      { id: "lsa_retrieve", label: "LsaCallAuth", sub: "RetrieveTicket", x: 1360, y: 260, r: 36, type: "api",
+        desc: "LsaCallAuthenticationPackage() with KerbRetrieveEncodedTicketMessage extracts ticket.",
+        src: "Microsoft LSASS docs" },
+
+      { id: "mimikatz", label: "Mimikatz", sub: "sekurlsa::tickets", x: 1480, y: 260, r: 36, type: "op",
+        desc: "Mimikatz reads TGS blob from LSASS memory. Requires local execution.",
+        src: "gentilkiwi/mimikatz" },
+
+      { id: "sysmon_10", label: "Sysmon 10", sub: "LSASS Access", x: 1600, y: 200, r: 34, type: "detect",
+        desc: "Sysmon Event ID 10: Process access to lsass.exe.",
+        src: "Sysmon docs" },
+
+      // Direct output path (no LSASS)
+      { id: "direct_out", label: "Direct Output", sub: "$krb5tgs$", x: 1360, y: 360, r: 36, type: "op",
+        desc: "Rubeus/Impacket output hash directly — no LSASS access. Bypasses Sysmon 10.",
+        src: "HackTricks; Rubeus" },
+
+      // ═══════════════════════════════════════════════════════════════
+      // BOTTOM: Passive / Blind Path
+      // ═══════════════════════════════════════════════════════════════
+      { id: "pcap", label: "PCAP", sub: "Capture", x: 160, y: 520, r: 32, type: "blind",
+        desc: "BLIND: Passive network capture of Kerberos traffic. No host artifacts.",
+        src: "MITRE T1558.003" },
+
+      { id: "extract_pcap", label: "extracttgs", sub: "frompcap.py", x: 400, y: 520, r: 36, type: "blind",
+        desc: "BLIND: nidem/kerberoast parses TGS-REP enc-part from PCAP. Zero logs.",
+        src: "nidem/kerberoast" },
+
+      // ═══════════════════════════════════════════════════════════════
+      // FAR RIGHT: Offline Cracking
+      // ═══════════════════════════════════════════════════════════════
+      { id: "hash_rc4", label: "$krb5tgs$23$", x: 1480, y: 360, r: 34, type: "artifact",
+        desc: "RC4 TGS hash in hashcat format. Fast to crack on GPU.",
+        src: "hashcat wiki" },
+
+      { id: "hash_aes", label: "$krb5tgs$18$", x: 1480, y: 440, r: 34, type: "artifact",
+        desc: "AES256 TGS hash. Slower to crack but still viable with weak passwords.",
+        src: "hashcat wiki" },
+
+      { id: "hashcat", label: "hashcat", sub: "-m 13100/19700", x: 1600, y: 400, r: 40, type: "blind",
+        desc: "BLIND: Offline cracking. Zero DC events. Zero network traffic. Prevention only.",
+        src: "hashcat.net" },
     ];
 
     const EDGES = [
-      // Creds to SPN enumeration
-      { f: "creds", t: "lw" },
-      { f: "creds", t: "ll" },
-      { f: "creds", t: "sp" },
-      { f: "creds", t: "pn", blind: true },
+      // Row 1: Rubeus Windows path
+      { f: "creds", t: "rubeus_enum" },
+      { f: "rubeus_enum", t: "dir_searcher" },
+      { f: "dir_searcher", t: "ldap_389" },
+      { f: "rubeus_enum", t: "krb_token" },
+      { f: "krb_token", t: "acq_creds" },
+      { f: "acq_creds", t: "tgs_req_1" },
+      { f: "tgs_req_1", t: "kdc" },
 
-      // SPN enum to TGS request
-      { f: "lw", t: "r4" },
-      { f: "lw", t: "ae" },
-      { f: "ll", t: "r4" },
-      { f: "ll", t: "to" },
-      { f: "sp", t: "r4" },
-      { f: "sp", t: "td" },
+      // Row 2: Impacket Linux path
+      { f: "creds", t: "impacket" },
+      { f: "impacket", t: "ldap_bind" },
+      { f: "ldap_bind", t: "ldap_636" },
+      { f: "impacket", t: "raw_tgs" },
+      { f: "raw_tgs", t: "tgs_req_aes" },
+      { f: "tgs_req_aes", t: "kdc" },
 
-      // TGS requests to DC
-      { f: "r4", t: "dc" },
-      { f: "ae", t: "dc" },
-      { f: "to", t: "dc" },
-      { f: "td", t: "dc" },
+      // Row 3: setspn LOTL path
+      { f: "creds", t: "setspn" },
+      { f: "setspn", t: "dsgetspn" },
+      { f: "dsgetspn", t: "ldap_389" },
+      { f: "setspn", t: "sysmon_1" },
 
-      // DC to detection
-      { f: "dc", t: "ev" },
+      // Row 4: tgtdeleg path
+      { f: "creds", t: "rubeus_deleg" },
+      { f: "rubeus_deleg", t: "gss_api" },
+      { f: "gss_api", t: "acq_creds_2" },
+      { f: "acq_creds_2", t: "tgs_req_deleg" },
+      { f: "tgs_req_deleg", t: "kdc" },
 
-      // Detection to storage
-      { f: "ev", t: "st" },
+      // KDC processing
+      { f: "kdc", t: "lookup_acct" },
+      { f: "lookup_acct", t: "encrypt_tkt" },
+      { f: "encrypt_tkt", t: "ev_4769" },
+      { f: "ev_4769", t: "tgs_rep" },
 
-      // Storage to extraction
-      { f: "st", t: "me" },
-      { f: "st", t: "do" },
+      // Response and storage
+      { f: "tgs_rep", t: "lsa_submit" },
+      { f: "lsa_submit", t: "lsass" },
+      { f: "lsass", t: "lsa_retrieve" },
+      { f: "lsa_retrieve", t: "mimikatz" },
+      { f: "mimikatz", t: "sysmon_10" },
 
-      // Passive path (bypasses DC)
-      { f: "pn", t: "pe", blind: true },
+      // Direct output path
+      { f: "tgs_rep", t: "direct_out" },
+      { f: "direct_out", t: "hash_rc4" },
+      { f: "mimikatz", t: "hash_rc4" },
 
-      // Extraction to cracking
-      { f: "me", t: "cr" },
-      { f: "do", t: "cr" },
-      { f: "pe", t: "cr", blind: true },
+      // Passive/blind path
+      { f: "creds", t: "pcap", blind: true },
+      { f: "pcap", t: "extract_pcap", blind: true },
+      { f: "extract_pcap", t: "hash_aes", blind: true },
+
+      // Cracking
+      { f: "hash_rc4", t: "hashcat" },
+      { f: "hash_aes", t: "hashcat", blind: true },
     ];
 
     const COLORS = {
-      entry:  { fill: "#f5f5f5", stroke: "#333",    text: "#111"   },
-      op:     { fill: "#e8f5e9", stroke: "#2e7d32", text: "#1b5e20" },
-      system: { fill: "#e3f2fd", stroke: "#1565c0", text: "#0d47a1" },
-      detect: { fill: "#fff8e1", stroke: "#f57f17", text: "#e65100" },
-      blind:  { fill: "#ffebee", stroke: "#c62828", text: "#b71c1c" },
+      entry:    { fill: "#f5f5f5", stroke: "#333",    text: "#111"   },
+      op:       { fill: "#e8f5e9", stroke: "#2e7d32", text: "#1b5e20" },
+      api:      { fill: "#f3e5f5", stroke: "#7b1fa2", text: "#4a148c" },
+      protocol: { fill: "#fff3e0", stroke: "#e65100", text: "#bf360c" },
+      system:   { fill: "#e3f2fd", stroke: "#1565c0", text: "#0d47a1" },
+      detect:   { fill: "#fff8e1", stroke: "#f57f17", text: "#e65100" },
+      artifact: { fill: "#eceff1", stroke: "#607d8b", text: "#37474f" },
+      blind:    { fill: "#ffebee", stroke: "#c62828", text: "#b71c1c" },
     };
 
     function DDM() {
       const [sel, setSel] = useState(null);
       const selNode = sel ? NODES.find(n => n.id === sel) : null;
 
-      // Helper to draw curved paths left-to-right
       const drawPath = (fn, tn) => {
         const x1 = fn.x + fn.r;
         const y1 = fn.y;
@@ -188,95 +272,74 @@
       };
 
       return (
-        <div style={{ padding: "24px 32px", maxWidth: 1050, margin: "0 auto" }}>
+        <div style={{ padding: "24px 32px", maxWidth: 1700, margin: "0 auto" }}>
           {/* Header */}
           <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: "2px solid #e0e0e0" }}>
             <div style={{ fontSize: 11, color: "#666", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>
-              Detection Data Model
+              Detection Data Model — Expanded View
             </div>
             <div style={{ fontSize: 24, fontWeight: 600, color: "#111" }}>
               T1558.003 — Kerberoasting
             </div>
             <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
-              Tactic: Credential Access · Platform: Windows Active Directory · MITRE ATT&CK v15
+              Operations → API Calls → Protocol Messages → System Processes → Detection Points
             </div>
           </div>
 
           {/* Legend */}
-          <div style={{ display: "flex", gap: 24, marginBottom: 20, fontSize: 12, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <svg width="20" height="20"><circle cx="10" cy="10" r="8" fill={COLORS.entry.fill} stroke={COLORS.entry.stroke} strokeWidth="2"/></svg>
-              <span>Entry Point</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <svg width="20" height="20"><circle cx="10" cy="10" r="8" fill={COLORS.op.fill} stroke={COLORS.op.stroke} strokeWidth="2"/></svg>
-              <span>Attacker Operation</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <svg width="20" height="20"><circle cx="10" cy="10" r="8" fill={COLORS.system.fill} stroke={COLORS.system.stroke} strokeWidth="2"/></svg>
-              <span>System Response</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <svg width="24" height="20"><circle cx="10" cy="10" r="8" fill={COLORS.detect.fill} stroke={COLORS.detect.stroke} strokeWidth="3"/></svg>
-              <span style={{ fontWeight: 600 }}>Optimal Detection</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <svg width="20" height="20"><circle cx="10" cy="10" r="8" fill={COLORS.blind.fill} stroke={COLORS.blind.stroke} strokeWidth="2" strokeDasharray="3,2"/></svg>
-              <span>Blind Spot</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#c62828" strokeWidth="1.5" strokeDasharray="4,3"/></svg>
-              <span style={{ color: "#999" }}>Blind Path</span>
-            </div>
+          <div style={{ display: "flex", gap: 18, marginBottom: 20, fontSize: 11, flexWrap: "wrap", alignItems: "center" }}>
+            {[
+              { type: "entry", label: "Entry Point" },
+              { type: "op", label: "Attacker Operation" },
+              { type: "api", label: "API Call" },
+              { type: "protocol", label: "Protocol/Network" },
+              { type: "system", label: "System Process" },
+              { type: "detect", label: "Detection Point" },
+              { type: "artifact", label: "Observable Artifact" },
+              { type: "blind", label: "Blind Spot" },
+            ].map(({ type, label }) => (
+              <div key={type} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <svg width="18" height="18">
+                  <circle cx="9" cy="9" r="7" fill={COLORS[type].fill} stroke={COLORS[type].stroke} strokeWidth="2"
+                    strokeDasharray={type === "blind" ? "3,2" : "none"} />
+                </svg>
+                <span style={{ fontWeight: type === "detect" ? 600 : 400 }}>{label}</span>
+              </div>
+            ))}
           </div>
 
           {/* SVG Graph */}
-          <svg width="1000" height="600" style={{ display: "block", background: "#fafafa", border: "1px solid #e0e0e0", borderRadius: 4 }}>
+          <svg width="1650" height="600" style={{ display: "block", background: "#fafafa", border: "1px solid #e0e0e0", borderRadius: 4, overflow: "visible" }}>
             <defs>
-              <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                <path d="M0,0 L0,6 L8,3z" fill="#666" />
+              <marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L6,3z" fill="#888" />
               </marker>
-              <marker id="arrow-blind" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                <path d="M0,0 L0,6 L8,3z" fill="#c62828" />
-              </marker>
-              <marker id="arrow-detect" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                <path d="M0,0 L0,6 L8,3z" fill="#f57f17" />
+              <marker id="arrow-blind" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L6,3z" fill="#c62828" />
               </marker>
             </defs>
 
-            {/* Column Labels */}
-            <text x="70" y="30" textAnchor="middle" fontSize="10" fill="#999" fontWeight="500">AUTH</text>
-            <text x="220" y="30" textAnchor="middle" fontSize="10" fill="#999" fontWeight="500">ENUM SPNs</text>
-            <text x="400" y="30" textAnchor="middle" fontSize="10" fill="#999" fontWeight="500">TGS REQUEST</text>
-            <text x="580" y="30" textAnchor="middle" fontSize="10" fill="#999" fontWeight="500">DC RESPONSE</text>
-            <text x="760" y="30" textAnchor="middle" fontSize="10" fill="#999" fontWeight="500">EXTRACTION</text>
-            <text x="920" y="30" textAnchor="middle" fontSize="10" fill="#999" fontWeight="500">CRACKING</text>
-
-            {/* Vertical separator lines */}
-            <line x1="145" y1="50" x2="145" y2="560" stroke="#eee" strokeWidth="1" strokeDasharray="4,4"/>
-            <line x1="310" y1="50" x2="310" y2="560" stroke="#eee" strokeWidth="1" strokeDasharray="4,4"/>
-            <line x1="490" y1="50" x2="490" y2="560" stroke="#eee" strokeWidth="1" strokeDasharray="4,4"/>
-            <line x1="670" y1="50" x2="670" y2="560" stroke="#eee" strokeWidth="1" strokeDasharray="4,4"/>
-            <line x1="845" y1="50" x2="845" y2="560" stroke="#eee" strokeWidth="1" strokeDasharray="4,4"/>
+            {/* Row labels */}
+            <text x="10" y="100" fontSize="9" fill="#999" fontWeight="500">WINDOWS</text>
+            <text x="10" y="200" fontSize="9" fill="#999" fontWeight="500">LINUX</text>
+            <text x="10" y="300" fontSize="9" fill="#999" fontWeight="500">LOTL</text>
+            <text x="10" y="400" fontSize="9" fill="#999" fontWeight="500">DELEG</text>
+            <text x="10" y="520" fontSize="9" fill="#c62828" fontWeight="500">BLIND</text>
 
             {/* Edges */}
             {EDGES.map((e, i) => {
               const fn = NODES.find(n => n.id === e.f);
               const tn = NODES.find(n => n.id === e.t);
               if (!fn || !tn) return null;
-
-              const toDetect = tn.type === "detect";
-              const isBlind = e.blind;
-
               return (
                 <path
                   key={i}
                   d={drawPath(fn, tn)}
-                  stroke={isBlind ? "#c62828" : toDetect ? "#f57f17" : "#888"}
-                  strokeWidth={toDetect ? 2 : 1.5}
-                  strokeDasharray={isBlind ? "5,4" : "none"}
+                  stroke={e.blind ? "#c62828" : "#aaa"}
+                  strokeWidth={1.2}
+                  strokeDasharray={e.blind ? "4,3" : "none"}
                   fill="none"
-                  markerEnd={isBlind ? "url(#arrow-blind)" : toDetect ? "url(#arrow-detect)" : "url(#arrow)"}
+                  markerEnd={e.blind ? "url(#arrow-blind)" : "url(#arrow)"}
                 />
               );
             })}
@@ -284,51 +347,32 @@
             {/* Nodes */}
             {NODES.map(n => {
               const isDetect = n.type === "detect";
-              const isBlindNode = n.type === "blind";
+              const isBlind = n.type === "blind";
               const colors = COLORS[n.type];
               const isSel = sel === n.id;
 
               return (
                 <g key={n.id} onClick={() => setSel(sel === n.id ? null : n.id)} style={{ cursor: "pointer" }}>
-                  {/* Outer glow for selected */}
                   {isSel && (
-                    <circle cx={n.x} cy={n.y} r={n.r + 6} fill="none" stroke="#333" strokeWidth="2" opacity="0.3" />
+                    <circle cx={n.x} cy={n.y} r={n.r + 5} fill="none" stroke="#333" strokeWidth="2" opacity="0.4" />
                   )}
-
-                  {/* Main circle */}
                   <circle
-                    cx={n.x}
-                    cy={n.y}
-                    r={n.r}
+                    cx={n.x} cy={n.y} r={n.r}
                     fill={colors.fill}
                     stroke={colors.stroke}
-                    strokeWidth={isDetect ? 4 : 2}
-                    strokeDasharray={isBlindNode ? "4,3" : "none"}
+                    strokeWidth={isDetect ? 3 : 1.5}
+                    strokeDasharray={isBlind ? "3,2" : "none"}
                   />
-
-                  {/* Label */}
-                  <text
-                    x={n.x}
-                    y={n.y - 4}
-                    textAnchor="middle"
-                    fill={colors.text}
-                    fontSize={isDetect ? 12 : 10}
-                    fontWeight={isDetect ? "bold" : "500"}
-                  >
+                  <text x={n.x} y={n.sub ? n.y - 3 : n.y + 3} textAnchor="middle"
+                    fill={colors.text} fontSize={isDetect ? 10 : 8} fontWeight={isDetect ? "bold" : "500"}>
                     {n.label}
                   </text>
-
-                  {/* Subtitle */}
-                  <text
-                    x={n.x}
-                    y={n.y + 10}
-                    textAnchor="middle"
-                    fill={colors.text}
-                    fontSize={8}
-                    opacity="0.7"
-                  >
-                    {n.sub}
-                  </text>
+                  {n.sub && (
+                    <text x={n.x} y={n.y + 9} textAnchor="middle"
+                      fill={colors.text} fontSize={7} opacity="0.7">
+                      {n.sub}
+                    </text>
+                  )}
                 </g>
               );
             })}
@@ -336,31 +380,26 @@
 
           {/* Detail Panel */}
           {selNode && (
-            <div style={{ marginTop: 16, border: `2px solid ${COLORS[selNode.type].stroke}`, padding: "16px 20px", background: "#fff", borderRadius: 6 }}>
+            <div style={{ marginTop: 16, border: `2px solid ${COLORS[selNode.type].stroke}`, padding: "14px 18px", background: "#fff", borderRadius: 6 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6, color: COLORS[selNode.type].text }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6, color: COLORS[selNode.type].text }}>
                     {selNode.label} {selNode.sub && `— ${selNode.sub}`}
+                    <span style={{ marginLeft: 10, fontSize: 10, color: "#999", textTransform: "uppercase" }}>{selNode.type}</span>
                   </div>
-                  <div style={{ fontSize: 11, color: "#555", fontStyle: "italic", marginBottom: 8 }}>
-                    <strong>API / Protocol:</strong> {selNode.api}
-                  </div>
-                  <div style={{ fontSize: 11, color: "#666", marginBottom: 10 }}>
-                    <strong>Observable Artifact:</strong> {selNode.artifact}
-                  </div>
-                  <div style={{ fontSize: 13, color: "#333", lineHeight: 1.7 }}>{selNode.desc}</div>
+                  <div style={{ fontSize: 12, color: "#333", lineHeight: 1.6 }}>{selNode.desc}</div>
                 </div>
                 <button onClick={() => setSel(null)}
-                  style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#aaa", marginLeft: 14 }}>×</button>
+                  style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#aaa", marginLeft: 12 }}>×</button>
               </div>
-              <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #eee", fontSize: 11, color: "#888" }}>
+              <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid #eee", fontSize: 10, color: "#888" }}>
                 <strong>Source:</strong> {selNode.src}
               </div>
             </div>
           )}
 
-          <div style={{ marginTop: 10, fontSize: 11, color: "#bbb", textAlign: "center" }}>
-            Click any node for API detail, artifacts, and sources · T1558.003 v1.3 · MITRE ATT&CK Enterprise
+          <div style={{ marginTop: 10, fontSize: 10, color: "#bbb", textAlign: "center" }}>
+            Click any node for details · T1558.003 v1.4 Expanded · MITRE ATT&CK Enterprise
           </div>
         </div>
       );
