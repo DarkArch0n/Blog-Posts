@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>T1558.003 Kerberoasting — Detection Data Model (VanVleet Style)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    * { margin: 0; }
+    body { line-height: 1.5; -webkit-font-smoothing: antialiased; background: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // LEFT-TO-RIGHT flow like VanVleet
+    // Green = attacker/source, Blue = target/DC, Red = blind spot
+    // Attack chain: Auth → Enum SPNs → Request TGS → DC Response → Extract → Crack
+
+    const NODES = [
+      // Column 1 - Entry Point
+      { id: "auth", label: "Authenticate", sub: "to Domain", x: 70, y: 280, r: 40, type: "source", 
+        tags: ["Any domain user", "No special privs"],
+        telemetry: [],
+        desc: "Any authenticated domain user can initiate Kerberoasting. No elevated privileges required — this is built into the Kerberos protocol by design.",
+        src: "MITRE ATT&CK T1558.003" },
+
+      // Column 2 - SPN Enumeration (4 procedures stacked vertically)
+      { id: "ldap_win", label: "Query SPNs", sub: "LDAP (Windows)", x: 220, y: 100, r: 36, type: "source",
+        tags: ["Rubeus", "PowerView", "System.IdentityModel"],
+        telemetry: ["Sysmon 3", "4662"],
+        desc: "Rubeus, PowerView, or native .NET System.IdentityModel query AD via LDAP for accounts with a non-null servicePrincipalName attribute.",
+        src: "Atomic Red Team T1558.003; GhostPack/Rubeus" },
+      
+      { id: "ldap_linux", label: "Query SPNs", sub: "LDAP (Linux)", x: 220, y: 200, r: 36, type: "source",
+        tags: ["Impacket GetUserSPNs.py", "NetExec"],
+        telemetry: ["4662"],
+        desc: "Impacket GetUserSPNs.py enumerates SPNs remotely using plaintext credentials or an NT hash. NetExec also supports this via LDAP.",
+        src: "Impacket; HackTricks Kerberoast" },
+      
+      { id: "setspn", label: "Enum SPNs", sub: "setspn.exe", x: 220, y: 300, r: 36, type: "source",
+        tags: ["setspn.exe -T -Q */*", "LOTL"],
+        telemetry: ["Sysmon 1"],
+        desc: "setspn.exe -T <domain> -Q */* uses a native Windows binary to enumerate SPNs. No external tooling required — classic living-off-the-land.",
+        src: "Microsoft setspn.exe docs; Atomic Red Team T1558.003" },
+      
+      { id: "passive", label: "Sniff Traffic", sub: "Passive Capture", x: 220, y: 460, r: 36, type: "blind",
+        tags: ["No query made", "PCAP only"],
+        telemetry: [],
+        desc: "⚠️ BLIND SPOT: Attacker sniffs existing Kerberos traffic passively. No LDAP query is made. No Event ID 4769 ever fires on the DC.",
+        src: "MITRE T1558.003; nidem/kerberoast" },
+
+      // Column 3 - TGS Request Methods (stacked vertically)
+      { id: "tgs_rc4", label: "Request TGS", sub: "RC4 Downgrade", x: 400, y: 100, r: 36, type: "source",
+        tags: ["etype 0x17", "RC4_HMAC_MD5"],
+        telemetry: [],
+        desc: "Tools request etype 23 (RC4_HMAC_MD5). RC4 uses the NTLM hash as the encryption key — extremely fast to crack offline with GPU tools.",
+        src: "TrustedSec Orpheus; ired.team Kerberoasting" },
+      
+      { id: "tgs_aes", label: "Request TGS", sub: "AES Stealth", x: 400, y: 200, r: 36, type: "source",
+        tags: ["etype 0x12", "AES256", "Blends in"],
+        telemetry: [],
+        desc: "Modified Impacket forces AES256 (etype 18). Blends with normal modern Kerberos traffic. No RC4 downgrade indicator fires. Harder to crack.",
+        src: "TrustedSec — Bypassing Kerberoast Detections with Orpheus, 2025" },
+      
+      { id: "tgs_opts", label: "Request TGS", sub: "Ticket Opts", x: 400, y: 300, r: 36, type: "source",
+        tags: ["0x40810000", "Flag matching"],
+        telemetry: [],
+        desc: "Default Rubeus ticket options (0x40800000) differ from normal AD traffic (0x40810000). Attackers modify flags to match normal patterns.",
+        src: "Intrinsec — Kerberos OPSEC Part 1, 2023" },
+      
+      { id: "tgs_deleg", label: "Request TGS", sub: "tgtdeleg", x: 400, y: 400, r: 36, type: "source",
+        tags: ["Rubeus /tgtdeleg", "Patched WS2019+"],
+        telemetry: [],
+        desc: "Rubeus /tgtdeleg uses GSS-API fake delegation TGT to force RC4 tickets even for AES-enabled accounts. Patched on Windows Server 2019+.",
+        src: "SpecterOps — Kerberoasting Revisited, 2019" },
+
+      // Column 4 - DC Issues TGS (OPTIMAL DETECTION)
+      { id: "dc_tgs", label: "Issue TGS", sub: "Event 4769", x: 580, y: 250, r: 50, type: "target",
+        tags: ["Event 4769", "TGS-REP", "Exclude krbtgt", "Exclude *$"],
+        telemetry: ["4769"],
+        desc: "⭐ OPTIMAL DETECTION NODE. The DC issues a TGS ticket. Event 4769 fires for all four active tool-based request procedures. Filters: exclude krbtgt, exclude machine accounts (*$), success only (0x0). Monitor etype 0x17 and anomalous ticket flags.",
+        src: "MITRE ATT&CK DET0157" },
+
+      // Column 5 - Extraction Methods
+      { id: "extract_mem", label: "Extract Hash", sub: "Memory", x: 760, y: 180, r: 36, type: "source",
+        tags: ["Mimikatz", "Rubeus", "LSASS"],
+        telemetry: ["Sysmon 10"],
+        desc: "Mimikatz or Rubeus extract the TGS ticket blob from the Windows Kerberos memory cache. Requires local execution on the victim host.",
+        src: "ired.team; Mimikatz" },
+      
+      { id: "extract_file", label: "Extract Hash", sub: "File Output", x: 760, y: 300, r: 36, type: "source",
+        tags: ["$krb5tgs$23$", "$krb5tgs$18$"],
+        telemetry: ["Sysmon 11"],
+        desc: "Rubeus and Impacket output the TGS hash directly to console or file in hashcat-ready format. No LSASS access needed.",
+        src: "HackTricks; GhostPack/Rubeus" },
+      
+      { id: "extract_pcap", label: "Extract Hash", sub: "From PCAP", x: 580, y: 460, r: 36, type: "blind",
+        tags: ["extracttgsrepfrompcap.py", "nidem/kerberoast"],
+        telemetry: [],
+        desc: "⚠️ BLIND SPOT: nidem's extracttgsrepfrompcap.py parses captured PCAP files and extracts TGS-REP hashes. Entirely passive — zero host access needed.",
+        src: "nidem/kerberoast; Netresec 2019" },
+
+      // Column 6 - Offline Cracking
+      { id: "crack", label: "Crack Hash", sub: "Offline", x: 920, y: 280, r: 45, type: "blind",
+        tags: ["hashcat 13100", "hashcat 19700", "No logs"],
+        telemetry: [],
+        desc: "⚠️ BLIND SPOT: Cracking happens fully off-network. Zero Windows events, zero network traffic, zero logs. RC4 = hashcat mode 13100. AES256 = mode 19700.",
+        src: "HackTricks; ADSecurity Metcalf 2015" },
+    ];
+
+    const EDGES = [
+      // Auth to SPN enumeration
+      { f: "auth", t: "ldap_win" },
+      { f: "auth", t: "ldap_linux" },
+      { f: "auth", t: "setspn" },
+      { f: "auth", t: "passive", blind: true },
+
+      // SPN enum to TGS request
+      { f: "ldap_win", t: "tgs_rc4" },
+      { f: "ldap_win", t: "tgs_aes" },
+      { f: "ldap_linux", t: "tgs_rc4" },
+      { f: "ldap_linux", t: "tgs_opts" },
+      { f: "setspn", t: "tgs_rc4" },
+      { f: "setspn", t: "tgs_deleg" },
+
+      // TGS requests to DC
+      { f: "tgs_rc4", t: "dc_tgs" },
+      { f: "tgs_aes", t: "dc_tgs" },
+      { f: "tgs_opts", t: "dc_tgs" },
+      { f: "tgs_deleg", t: "dc_tgs" },
+
+      // DC to extraction
+      { f: "dc_tgs", t: "extract_mem" },
+      { f: "dc_tgs", t: "extract_file" },
+
+      // Passive path (bypasses DC)
+      { f: "passive", t: "extract_pcap", blind: true },
+
+      // Extraction to cracking
+      { f: "extract_mem", t: "crack" },
+      { f: "extract_file", t: "crack" },
+      { f: "extract_pcap", t: "crack", blind: true },
+    ];
+
+    const COLORS = {
+      source: { fill: "#e8f5e9", stroke: "#2e7d32", text: "#1b5e20" },
+      target: { fill: "#e3f2fd", stroke: "#1565c0", text: "#0d47a1" },
+      blind: { fill: "#ffebee", stroke: "#c62828", text: "#b71c1c" },
+      detect: { fill: "#fff8e1", stroke: "#f57f17", text: "#e65100" },
+    };
+
+    function DDM() {
+      const [sel, setSel] = useState(null);
+      const selNode = sel ? NODES.find(n => n.id === sel) : null;
+      const isDetect = (id) => id === "dc_tgs";
+
+      // Helper to draw curved paths left-to-right
+      const drawPath = (fn, tn) => {
+        const x1 = fn.x + fn.r;
+        const y1 = fn.y;
+        const x2 = tn.x - tn.r;
+        const y2 = tn.y;
+        const mx = (x1 + x2) / 2;
+        return `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
+      };
+
+      return (
+        <div style={{ padding: "24px 32px", maxWidth: 1050, margin: "0 auto" }}>
+          {/* Header */}
+          <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: "2px solid #e0e0e0" }}>
+            <div style={{ fontSize: 11, color: "#666", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>
+              Detection Data Model
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 600, color: "#111" }}>
+              T1558.003 — Kerberoasting
+            </div>
+            <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
+              Tactic: Credential Access · Platform: Windows Active Directory · MITRE ATT&CK v15
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div style={{ display: "flex", gap: 24, marginBottom: 20, fontSize: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <svg width="20" height="20"><circle cx="10" cy="10" r="8" fill={COLORS.source.fill} stroke={COLORS.source.stroke} strokeWidth="2"/></svg>
+              <span>Attacker Operation</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <svg width="20" height="20"><circle cx="10" cy="10" r="8" fill={COLORS.target.fill} stroke={COLORS.target.stroke} strokeWidth="2"/></svg>
+              <span>Target (DC)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <svg width="24" height="20"><circle cx="10" cy="10" r="8" fill={COLORS.detect.fill} stroke={COLORS.detect.stroke} strokeWidth="3"/></svg>
+              <span style={{ fontWeight: 600 }}>Optimal Detection</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <svg width="20" height="20"><circle cx="10" cy="10" r="8" fill={COLORS.blind.fill} stroke={COLORS.blind.stroke} strokeWidth="2" strokeDasharray="3,2"/></svg>
+              <span>Blind Spot</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#c62828" strokeWidth="1.5" strokeDasharray="4,3"/></svg>
+              <span style={{ color: "#999" }}>Blind Path</span>
+            </div>
+          </div>
+
+          {/* SVG Graph */}
+          <svg width="1000" height="560" style={{ display: "block", background: "#fafafa", border: "1px solid #e0e0e0", borderRadius: 4 }}>
+            <defs>
+              <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3z" fill="#666" />
+              </marker>
+              <marker id="arrow-blind" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3z" fill="#c62828" />
+              </marker>
+              <marker id="arrow-detect" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3z" fill="#f57f17" />
+              </marker>
+            </defs>
+
+            {/* Column Labels */}
+            <text x="70" y="30" textAnchor="middle" fontSize="10" fill="#999" fontWeight="500">AUTH</text>
+            <text x="220" y="30" textAnchor="middle" fontSize="10" fill="#999" fontWeight="500">ENUM SPNs</text>
+            <text x="400" y="30" textAnchor="middle" fontSize="10" fill="#999" fontWeight="500">TGS REQUEST</text>
+            <text x="580" y="30" textAnchor="middle" fontSize="10" fill="#999" fontWeight="500">DC RESPONSE</text>
+            <text x="760" y="30" textAnchor="middle" fontSize="10" fill="#999" fontWeight="500">EXTRACTION</text>
+            <text x="920" y="30" textAnchor="middle" fontSize="10" fill="#999" fontWeight="500">CRACKING</text>
+
+            {/* Vertical separator lines */}
+            <line x1="145" y1="45" x2="145" y2="520" stroke="#eee" strokeWidth="1" strokeDasharray="4,4"/>
+            <line x1="310" y1="45" x2="310" y2="520" stroke="#eee" strokeWidth="1" strokeDasharray="4,4"/>
+            <line x1="490" y1="45" x2="490" y2="520" stroke="#eee" strokeWidth="1" strokeDasharray="4,4"/>
+            <line x1="670" y1="45" x2="670" y2="520" stroke="#eee" strokeWidth="1" strokeDasharray="4,4"/>
+            <line x1="845" y1="45" x2="845" y2="520" stroke="#eee" strokeWidth="1" strokeDasharray="4,4"/>
+
+            {/* Edges */}
+            {EDGES.map((e, i) => {
+              const fn = NODES.find(n => n.id === e.f);
+              const tn = NODES.find(n => n.id === e.t);
+              if (!fn || !tn) return null;
+              
+              const toDetect = tn.id === "dc_tgs";
+              const isBlind = e.blind;
+              
+              return (
+                <path
+                  key={i}
+                  d={drawPath(fn, tn)}
+                  stroke={isBlind ? "#c62828" : toDetect ? "#f57f17" : "#888"}
+                  strokeWidth={toDetect ? 2 : 1.5}
+                  strokeDasharray={isBlind ? "5,4" : "none"}
+                  fill="none"
+                  markerEnd={isBlind ? "url(#arrow-blind)" : toDetect ? "url(#arrow-detect)" : "url(#arrow)"}
+                />
+              );
+            })}
+
+            {/* Nodes */}
+            {NODES.map(n => {
+              const detect = isDetect(n.id);
+              const colors = detect ? COLORS.detect : COLORS[n.type];
+              const isSel = sel === n.id;
+              const isBlindNode = n.type === "blind";
+
+              return (
+                <g key={n.id} onClick={() => setSel(sel === n.id ? null : n.id)} style={{ cursor: "pointer" }}>
+                  {/* Outer glow for selected */}
+                  {isSel && (
+                    <circle cx={n.x} cy={n.y} r={n.r + 6} fill="none" stroke="#333" strokeWidth="2" opacity="0.3" />
+                  )}
+                  
+                  {/* Main circle */}
+                  <circle
+                    cx={n.x}
+                    cy={n.y}
+                    r={n.r}
+                    fill={colors.fill}
+                    stroke={colors.stroke}
+                    strokeWidth={detect ? 4 : 2}
+                    strokeDasharray={isBlindNode ? "4,3" : "none"}
+                  />
+                  
+                  {/* Label */}
+                  <text
+                    x={n.x}
+                    y={n.y - 6}
+                    textAnchor="middle"
+                    fill={colors.text}
+                    fontSize={detect ? 12 : 10}
+                    fontWeight={detect ? "bold" : "500"}
+                  >
+                    {n.label}
+                  </text>
+                  
+                  {/* Subtitle */}
+                  <text
+                    x={n.x}
+                    y={n.y + 9}
+                    textAnchor="middle"
+                    fill={colors.text}
+                    fontSize={8}
+                    opacity={0.85}
+                  >
+                    {n.sub}
+                  </text>
+
+                  {/* Telemetry badge (positioned to the right) */}
+                  {n.telemetry && n.telemetry.length > 0 && (
+                    <g>
+                      <rect
+                        x={n.x - 20}
+                        y={n.y + n.r + 4}
+                        width={40}
+                        height={14}
+                        rx={3}
+                        fill="#fff"
+                        stroke="#9e9e9e"
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={n.x}
+                        y={n.y + n.r + 14}
+                        textAnchor="middle"
+                        fontSize="8"
+                        fill="#616161"
+                      >
+                        {n.telemetry[0]}
+                      </text>
+                    </g>
+                  )}
+                </g>
+              );
+            })}
+
+            {/* Optimal detection highlight */}
+            <text x="580" y="320" textAnchor="middle" fontSize="9" fill="#f57f17" fontWeight="600">
+              ⭐ Covers 4 procedures
+            </text>
+
+            {/* Blind path label */}
+            <text x="400" y="490" textAnchor="middle" fontSize="9" fill="#c62828" fontStyle="italic">
+              Passive path bypasses all detection
+            </text>
+          </svg>
+
+          {/* Detail Panel */}
+          {selNode && (
+            <div style={{ 
+              marginTop: 16, 
+              border: "1px solid #ddd", 
+              borderRadius: 6,
+              padding: "16px 20px", 
+              background: "#fff",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ 
+                    fontWeight: 600, 
+                    fontSize: 15, 
+                    marginBottom: 4,
+                    color: isDetect(selNode.id) ? COLORS.detect.stroke : COLORS[selNode.type].stroke
+                  }}>
+                    {selNode.label}: {selNode.sub}
+                  </div>
+                  
+                  {/* Tags */}
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+                    {selNode.tags.map((tag, i) => (
+                      <span key={i} style={{
+                        background: "#f5f5f5",
+                        border: "1px solid #e0e0e0",
+                        borderRadius: 4,
+                        padding: "2px 8px",
+                        fontSize: 11,
+                        color: "#555"
+                      }}>
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  
+                  <div style={{ fontSize: 13, color: "#333", lineHeight: 1.7 }}>
+                    {selNode.desc}
+                  </div>
+                  
+                  {/* Telemetry */}
+                  {selNode.telemetry && selNode.telemetry.length > 0 && (
+                    <div style={{ marginTop: 12, padding: "8px 12px", background: "#e3f2fd", borderRadius: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "#1565c0" }}>Telemetry: </span>
+                      <span style={{ fontSize: 11, color: "#1976d2" }}>{selNode.telemetry.join(", ")}</span>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setSel(null); }}
+                  style={{ 
+                    background: "none", 
+                    border: "none", 
+                    fontSize: 20, 
+                    cursor: "pointer", 
+                    color: "#aaa",
+                    marginLeft: 12,
+                    padding: "0 4px"
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              <div style={{ 
+                marginTop: 12, 
+                paddingTop: 12, 
+                borderTop: "1px solid #eee", 
+                fontSize: 11, 
+                color: "#888" 
+              }}>
+                <strong>Source:</strong> {selNode.src}
+              </div>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div style={{ marginTop: 12, fontSize: 11, color: "#bbb", textAlign: "center" }}>
+            Click any node for details and sources · T1558.003 v1.5 · VanVleet DDM Style · MITRE ATT&CK Enterprise
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<DDM />);
+  </script>
+</body>
+</html>

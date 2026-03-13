@@ -1,0 +1,240 @@
+import { useState } from "react";
+
+const NODES = [
+  { id: "creds", label: "Valid Domain Credentials", sub: "Any authenticated AD user", x: 240, y: 20, w: 240, h: 44, type: "entry" },
+  { id: "lw", label: "LDAP Query (Windows)", sub: "Rubeus / PowerView / PowerShell", x: 20, y: 120, w: 175, h: 44, type: "op" },
+  { id: "ll", label: "LDAP Query (Linux/Remote)", sub: "Impacket GetUserSPNs.py", x: 210, y: 120, w: 175, h: 44, type: "op" },
+  { id: "sp", label: "setspn.exe", sub: "Native Windows binary", x: 400, y: 120, w: 130, h: 44, type: "op" },
+  { id: "pn", label: "Passive Network Capture", sub: "Sniff TGS-REP off the wire", x: 545, y: 120, w: 165, h: 44, type: "blind" },
+  { id: "r4", label: "TGS-REQ (RC4 Downgrade)", sub: "etype 0x17 — default for most tools", x: 20, y: 240, w: 175, h: 44, type: "op" },
+  { id: "ae", label: "TGS-REQ (AES Stealth)", sub: "etype 0x12 — modified Impacket", x: 210, y: 240, w: 175, h: 44, type: "op" },
+  { id: "to", label: "Ticket Options Manipulation", sub: "Rubeus 0x40800000 vs 0x40810000", x: 400, y: 240, w: 148, h: 44, type: "op" },
+  { id: "td", label: "tgtdeleg RC4 Downgrade", sub: "Rubeus /tgtdeleg — patched WS2019+", x: 562, y: 240, w: 148, h: 44, type: "op" },
+  { id: "ev", label: "Windows Event ID 4769", sub: "TGS-REQ at DC — Optimal Detection Node — covers all 4 active procedures", x: 165, y: 355, w: 390, h: 50, type: "detect" },
+  { id: "me", label: "In-Memory Extraction", sub: "Mimikatz / Rubeus from LSASS", x: 55, y: 468, w: 165, h: 44, type: "op" },
+  { id: "do", label: "Direct Tool Output", sub: "$krb5tgs$23$ / $krb5tgs$18$ to file", x: 240, y: 468, w: 165, h: 44, type: "op" },
+  { id: "pe", label: "PCAP Hash Extraction", sub: "nidem/kerberoast pcap parser", x: 490, y: 468, w: 165, h: 44, type: "blind" },
+  { id: "cr", label: "Offline Cracking", sub: "Hashcat / JtR — no logs generated", x: 165, y: 572, w: 390, h: 44, type: "blind" },
+];
+
+const EDGES = [
+  { f: "creds", t: "lw" },
+  { f: "creds", t: "ll" },
+  { f: "creds", t: "sp" },
+  { f: "creds", t: "pn", blind: true },
+  { f: "lw", t: "r4" },
+  { f: "lw", t: "ae" },
+  { f: "ll", t: "r4" },
+  { f: "ll", t: "to" },
+  { f: "sp", t: "r4" },
+  { f: "sp", t: "td" },
+  { f: "pn", t: "pe", blind: true },
+  { f: "r4", t: "ev" },
+  { f: "ae", t: "ev" },
+  { f: "to", t: "ev" },
+  { f: "td", t: "ev" },
+  { f: "ev", t: "me" },
+  { f: "ev", t: "do" },
+  { f: "me", t: "cr" },
+  { f: "do", t: "cr" },
+  { f: "pe", t: "cr", blind: true },
+];
+
+const DETAILS = {
+  creds: {
+    desc: "Any authenticated domain user can initiate Kerberoasting. No elevated privileges required — built into the Kerberos protocol by design.",
+    src: "MITRE ATT&CK T1558.003"
+  },
+  lw: {
+    desc: "Rubeus, PowerView, or native .NET System.IdentityModel query AD via LDAP for accounts with a non-null servicePrincipalName attribute.",
+    src: "Atomic Red Team T1558.003; GhostPack/Rubeus — github.com/GhostPack/Rubeus"
+  },
+  ll: {
+    desc: "Impacket GetUserSPNs.py enumerates SPNs remotely using plaintext credentials or an NT hash. NetExec also supports this via LDAP.",
+    src: "Impacket; HackTricks Kerberoast — book.hacktricks.xyz"
+  },
+  sp: {
+    desc: "setspn.exe -T <domain> -Q */* uses a native Windows binary to enumerate SPNs. No external tooling required — classic living-off-the-land.",
+    src: "Microsoft setspn.exe docs; Atomic Red Team T1558.003"
+  },
+  pn: {
+    desc: "BLIND SPOT: Attacker sniffs existing Kerberos traffic passively. No LDAP query is made. No Event ID 4769 ever fires on the DC.",
+    src: "MITRE T1558.003; nidem/kerberoast — github.com/nidem/kerberoast"
+  },
+  r4: {
+    desc: "Tools request etype 23 (RC4_HMAC_MD5). RC4 uses the NTLM hash as the encryption key — extremely fast to crack offline with GPU tools.",
+    src: "TrustedSec Orpheus blog 2025 — trustedsec.com; ired.team Kerberoasting"
+  },
+  ae: {
+    desc: "Modified Impacket forces AES256 (etype 18). Blends with normal modern Kerberos traffic. No RC4 downgrade indicator fires. Harder to crack.",
+    src: "TrustedSec — Bypassing Kerberoast Detections with Orpheus, 2025"
+  },
+  to: {
+    desc: "Default Rubeus ticket options (0x40800000) differ from normal AD traffic (0x40810000). Attackers modify flags to match normal patterns.",
+    src: "Intrinsec — Kerberos OPSEC Part 1, 2023 — intrinsec.com"
+  },
+  td: {
+    desc: "Rubeus /tgtdeleg uses GSS-API fake delegation TGT to force RC4 tickets even for AES-enabled accounts. Patched on Windows Server 2019+.",
+    src: "SpecterOps — Kerberoasting Revisited, 2019 — specterops.io"
+  },
+  ev: {
+    desc: "OPTIMAL DETECTION NODE. Fires for all four active tool-based request procedures. Filters: exclude krbtgt, exclude machine accounts (*$), success only (0x0). Monitor etype 0x17 and anomalous ticket flags. Blind spot: passive PCAP path bypasses this entirely.",
+    src: "MITRE ATT&CK DET0157 — attack.mitre.org/detectionstrategies/DET0157/"
+  },
+  me: {
+    desc: "Mimikatz or Rubeus extract the TGS ticket blob from the Windows Kerberos memory cache. Requires local execution on the victim host.",
+    src: "ired.team Kerberoasting; Mimikatz — github.com/gentilkiwi/mimikatz"
+  },
+  do: {
+    desc: "Rubeus and Impacket output the TGS hash directly to console or file in hashcat-ready format. No LSASS access needed.",
+    src: "HackTricks Kerberoast; GhostPack/Rubeus — github.com/GhostPack/Rubeus"
+  },
+  pe: {
+    desc: "BLIND SPOT: nidem's extracttgsrepfrompcap.py parses captured PCAP files and extracts TGS-REP hashes. Entirely passive — zero host access needed.",
+    src: "nidem/kerberoast — github.com/nidem/kerberoast; Netresec 2019"
+  },
+  cr: {
+    desc: "BLIND SPOT: Cracking happens fully off-network. Zero Windows events, zero network traffic, zero logs. RC4 = hashcat mode 13100. AES256 = mode 19700.",
+    src: "HackTricks; ADSecurity Metcalf 2015 — adsecurity.org/?p=2293"
+  },
+};
+
+export default function DDM() {
+  const [sel, setSel] = useState(null);
+
+  const byId = (id) => NODES.find((n) => n.id === id);
+  const cx = (n) => n.x + n.w / 2;
+  const selNode = sel ? NODES.find((n) => n.id === sel) : null;
+
+  return (
+    <div style={{ background: "#fff", minHeight: "100vh", fontFamily: "Arial, sans-serif", padding: "28px 32px" }}>
+      <div style={{ maxWidth: 760, margin: "0 auto" }}>
+        {/* Header */}
+        <div style={{ marginBottom: 16, paddingBottom: 12, borderBottom: "1px solid #ccc" }}>
+          <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, textTransform: "uppercase", marginBottom: 3 }}>
+            Detection Data Model
+          </div>
+          <div style={{ fontSize: 20, fontWeight: "bold", color: "#111" }}>
+            T1558.003 — Kerberoasting
+          </div>
+          <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>
+            Tactic: Credential Access · Platform: Windows Active Directory · MITRE ATT&CK v15
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div style={{ display: "flex", gap: 20, marginBottom: 14, fontSize: 11, color: "#555", flexWrap: "wrap" }}>
+          <span>□ Entry Point</span>
+          <span>□ Procedure</span>
+          <span style={{ background: "#fffbe6", padding: "1px 6px", border: "1px solid #ccc" }}>□ Optimal Detection Node</span>
+          <span style={{ color: "#bbb" }}>□ Blind Spot</span>
+          <span style={{ color: "#bbb" }}>- - → Blind Path</span>
+        </div>
+
+        {/* SVG Graph */}
+        <svg width="730" height="640" style={{ display: "block", border: "1px solid #e0e0e0", background: "#fff" }}>
+          <defs>
+            <marker id="arrow-normal" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3z" fill="#444" />
+            </marker>
+            <marker id="arrow-blind" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3z" fill="#ccc" />
+            </marker>
+          </defs>
+
+          {/* Edges */}
+          {EDGES.map((e, i) => {
+            const fn = byId(e.f);
+            const tn = byId(e.t);
+            if (!fn || !tn) return null;
+            const x1 = cx(fn);
+            const y1 = fn.y + fn.h;
+            const x2 = cx(tn);
+            const y2 = tn.y;
+            const my = (y1 + y2) / 2;
+            return (
+              <path
+                key={i}
+                d={`M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`}
+                stroke={e.blind ? "#ccc" : "#444"}
+                strokeWidth="1"
+                strokeDasharray={e.blind ? "5,4" : "none"}
+                fill="none"
+                markerEnd={e.blind ? "url(#arrow-blind)" : "url(#arrow-normal)"}
+              />
+            );
+          })}
+
+          {/* Nodes */}
+          {NODES.map((n) => {
+            const isDetect = n.type === "detect";
+            const isBlind = n.type === "blind";
+            const isSel = sel === n.id;
+            return (
+              <g key={n.id} onClick={() => setSel(sel === n.id ? null : n.id)} style={{ cursor: "pointer" }}>
+                <rect
+                  x={n.x}
+                  y={n.y}
+                  width={n.w}
+                  height={n.h}
+                  rx={2}
+                  fill={isDetect ? "#fffbe6" : isSel ? "#f5f5f5" : "#fff"}
+                  stroke={isBlind ? "#ccc" : isSel ? "#000" : "#444"}
+                  strokeWidth={isDetect ? 2 : 1}
+                />
+                <text
+                  x={cx(n)}
+                  y={n.y + 17}
+                  textAnchor="middle"
+                  fill={isBlind ? "#aaa" : "#111"}
+                  fontSize={isDetect ? 11 : 10}
+                  fontWeight={isDetect ? "bold" : "normal"}
+                  fontFamily="Arial"
+                >
+                  {n.label}
+                </text>
+                <text
+                  x={cx(n)}
+                  y={n.y + 31}
+                  textAnchor="middle"
+                  fill={isBlind ? "#ccc" : "#888"}
+                  fontSize={8}
+                  fontFamily="Arial"
+                  fontStyle="italic"
+                >
+                  {n.sub.length > 58 ? n.sub.slice(0, 58) + "…" : n.sub}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+
+        {/* Detail Panel */}
+        {selNode && (
+          <div style={{ marginTop: 14, border: "1px solid #ddd", padding: "12px 16px", background: "#fafafa" }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: "bold", fontSize: 13, marginBottom: 5 }}>{selNode.label}</div>
+                <div style={{ fontSize: 12, color: "#333", lineHeight: 1.7 }}>{DETAILS[selNode.id]?.desc}</div>
+              </div>
+              <button
+                onClick={() => setSel(null)}
+                style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#aaa", marginLeft: 12 }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #eee", fontSize: 10, color: "#888" }}>
+              <strong>Source:</strong> {DETAILS[selNode.id]?.src}
+            </div>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div style={{ marginTop: 8, fontSize: 10, color: "#ccc", textAlign: "center" }}>
+          Click any node for details and sources · T1558.003 v1.3 · MITRE ATT&CK Enterprise
+        </div>
+      </div>
+    </div>
+  );
+}
