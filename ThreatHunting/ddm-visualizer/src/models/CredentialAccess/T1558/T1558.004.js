@@ -1,6 +1,143 @@
-﻿// T1558.004 - AS-REP Roasting
-// Parent: T1558 - Steal or Forge Kerberos Tickets
-// Tactic: CredentialAccess
-// Status: Placeholder - no DDM built yet
+﻿// T1558.004 — AS-REP Roasting — Detection Data Model
+// Tactic: Credential Access
 
-export default null;
+const model = {
+  metadata: {
+    tcode: "T1558.004",
+    name: "AS-REP Roasting",
+    tactic: "Credential Access",
+    platform: "Windows Active Directory",
+    version: "v1.0",
+  },
+
+  detectNodeId: "ev_4768",
+
+  layout: {
+    svgWidth: 1000,
+    svgHeight: 560,
+    columns: [
+      { label: "AUTH",          x: 70  },
+      { label: "ENUM ACCOUNTS", x: 220 },
+      { label: "AS-REQ",       x: 400 },
+      { label: "DC RESPONSE",  x: 580 },
+      { label: "EXTRACTION",   x: 760 },
+      { label: "CRACKING",     x: 920 },
+    ],
+    separators: [145, 310, 490, 670, 845],
+    annotations: [
+      { text: "Covers all enumeration methods", x: 580, y: 370, color: "#f57f17", fontWeight: "600" },
+      { text: "Offline cracking — zero telemetry", x: 920, y: 400, color: "#c62828", fontStyle: "italic" },
+    ],
+  },
+
+  nodes: [
+    { id: "creds", label: "Any Access", sub: "to Domain", x: 70, y: 280, r: 40, type: "source",
+      tags: ["Any domain user", "Or unauthenticated", "No special privs"],
+      telemetry: [],
+      api: "Authenticated domain session OR unauthenticated if usernames are known",
+      artifact: "Existing session or known username list — no TGT required for AS-REQ",
+      desc: "AS-REP Roasting can be performed by any authenticated domain user (to enumerate targets via LDAP), or even unauthenticated if target usernames are already known. The AS-REQ does not require a TGT — it IS the initial authentication request. Lower barrier than Kerberoasting.",
+      src: "MITRE ATT&CK T1558.004; HackTricks AS-REP Roasting" },
+
+    { id: "rubeus_asrep", label: "Rubeus", sub: "asreproast", x: 220, y: 100, r: 36, type: "source",
+      tags: ["Rubeus asreproast", "Auto-discovers", "LDAP + AS-REQ"],
+      telemetry: ["4662"],
+      api: "LDAP query: (userAccountControl:1.2.840.113556.1.4.803:=4194304) → AS-REQ",
+      artifact: "LDAP query for DONT_REQUIRE_PREAUTH · then AS-REQ per account",
+      desc: "Rubeus asreproast queries LDAP for accounts with the DONT_REQUIRE_PREAUTH flag (UAC bit 0x400000), then automatically sends AS-REQ without pre-authentication for each discovered account. Combines enumeration and exploitation in one step.",
+      src: "GhostPack/Rubeus — github.com/GhostPack/Rubeus" },
+
+    { id: "imp_npusers", label: "Impacket", sub: "GetNPUsers.py", x: 220, y: 220, r: 36, type: "source",
+      tags: ["GetNPUsers.py", "-no-pass", "Remote from Linux"],
+      telemetry: ["4662"],
+      api: "GetNPUsers.py <domain>/<user> -no-pass -dc-ip <dc> -request",
+      artifact: "LDAP traffic from non-Windows host · AS-REQ with no pre-auth data",
+      desc: "Impacket GetNPUsers.py enumerates accounts without pre-authentication from a remote Linux host. Can operate with credentials for LDAP enumeration or with just a username list (-usersfile) for unauthenticated AS-REQ.",
+      src: "Impacket — github.com/fortra/impacket" },
+
+    { id: "powerview", label: "PowerView", sub: "PreauthNotReq", x: 220, y: 340, r: 36, type: "source",
+      tags: ["Get-DomainUser", "-PreauthNotRequired", "Enum only"],
+      telemetry: ["4662"],
+      api: "Get-DomainUser -PreauthNotRequired → LDAP filter for UAC bit 0x400000",
+      artifact: "LDAP query for DONT_REQUIRE_PREAUTH · enumeration only, no AS-REQ",
+      desc: "PowerView Get-DomainUser -PreauthNotRequired queries LDAP to find accounts with pre-authentication disabled. Enumeration only — a separate tool (Rubeus) is needed to send AS-REQ and capture the hash.",
+      src: "PowerSploit/PowerView — github.com/PowerShellMafia/PowerSploit" },
+
+    { id: "username_list", label: "Username List", sub: "No Auth Needed", x: 220, y: 460, r: 36, type: "blind",
+      tags: ["Known usernames", "No LDAP needed", "Unauthenticated"],
+      telemetry: [],
+      api: "AS-REQ per username — no LDAP query · no authentication required",
+      artifact: "⚠ No LDAP query · AS-REQ only · unauthenticated if usernames known",
+      desc: "BLIND SPOT: If attacker already knows target usernames (OSINT, previous recon, breached data), they send AS-REQ directly without LDAP enumeration. No authentication required — AS-REQ is the first Kerberos step and can be sent by anyone reaching DC port 88.",
+      src: "HackTricks AS-REP Roasting; kerbrute userenum" },
+
+    { id: "asreq_rc4", label: "AS-REQ", sub: "RC4 (etype 23)", x: 400, y: 160, r: 36, type: "source",
+      tags: ["etype 0x17", "RC4_HMAC_MD5", "Fast to crack"],
+      telemetry: [],
+      api: "KRB_AS_REQ on port 88 with etype 23 · no PA-ENC-TIMESTAMP field",
+      artifact: "AS-REQ on port 88 · no pre-authentication data · etype 0x17",
+      desc: "AS-REQ sent to DC on port 88 requesting etype 23 (RC4) without the PA-ENC-TIMESTAMP pre-authentication field. Since the account has DONT_REQUIRE_PREAUTH set, the DC responds with an AS-REP containing the encrypted portion using the user's RC4 key. Fast to crack.",
+      src: "RFC 4120; TrustedSec AS-REP Roasting" },
+
+    { id: "asreq_aes", label: "AS-REQ", sub: "AES (etype 18)", x: 400, y: 340, r: 36, type: "source",
+      tags: ["etype 0x12", "AES256", "Stealth", "Slower crack"],
+      telemetry: [],
+      api: "KRB_AS_REQ on port 88 with etype 18 · blends with normal traffic",
+      artifact: "AS-REQ with etype 0x12 · blends with modern Kerberos · harder to crack",
+      desc: "Modified AS-REQ requesting AES256 (etype 18). The AS-REP uses AES encryption, blending with normal modern Kerberos traffic and evading RC4-specific detection rules. AES hashes are slower to crack offline.",
+      src: "TrustedSec — Kerberos OPSEC; HackTricks AS-REP Roasting" },
+
+    { id: "ev_4768", label: "AS-REP", sub: "Event 4768", x: 580, y: 250, r: 50, type: "detect",
+      tags: ["Event 4768", "PreAuthType: 0", "EncryptionType", "No pre-auth"],
+      telemetry: ["4768"],
+      api: "KDC issues AS-REP without pre-authentication — Event 4768 fires",
+      artifact: "OPTIMAL: Event 4768 PreAuthType=0 · etype 0x17 suspicious · source IP anomaly",
+      desc: "OPTIMAL DETECTION NODE. Event 4768 (TGT issued) fires for every AS-REP. Key fields: PreAuthType = 0 (no pre-auth — the critical indicator), TicketEncryptionType (0x17=RC4 suspicious), ClientAddress (source IP), TargetUserName. Baseline known pre-auth-disabled accounts (legacy/service) and alert on unexpected sources or volume spikes.",
+      src: "MITRE ATT&CK T1558.004; Microsoft Event 4768 docs" },
+
+    { id: "direct_out", label: "Direct Output", sub: "$krb5asrep$", x: 760, y: 180, r: 36, type: "source",
+      tags: ["$krb5asrep$23$", "$krb5asrep$18$", "hashcat-ready"],
+      telemetry: [],
+      api: "Tool outputs $krb5asrep$ hash to stdout/file — ready for hashcat",
+      artifact: "$krb5asrep$23$ (RC4) or $krb5asrep$18$ (AES) in hashcat format",
+      desc: "Rubeus and Impacket output the AS-REP hash directly in hashcat format ($krb5asrep$23$ for RC4, $krb5asrep$18$ for AES). No LSASS access required — extracted from the network response.",
+      src: "HackTricks AS-REP Roasting; GhostPack/Rubeus" },
+
+    { id: "pcap_extract", label: "PCAP Extract", sub: "From Capture", x: 760, y: 360, r: 36, type: "blind",
+      tags: ["Wireshark", "Network capture", "Zero host artifacts"],
+      telemetry: [],
+      api: "Extract AS-REP enc-part from network capture — no host execution",
+      artifact: "⚠ No host artifacts · hash extracted from passive network capture",
+      desc: "BLIND SPOT: AS-REP hash can be extracted from a passive network capture. If attacker has network visibility, they capture AS-REP packets and extract the encrypted portion offline.",
+      src: "Wireshark Kerberos dissector; network forensics" },
+
+    { id: "crack", label: "Crack Hash", sub: "Offline", x: 920, y: 280, r: 45, type: "blind",
+      tags: ["hashcat -m 18200", "hashcat -m 19700", "No logs"],
+      telemetry: [],
+      api: "hashcat -m 18200 (RC4 AS-REP) / -m 19700 (AES) — fully offline",
+      artifact: "⚠ Zero DC events · zero network traffic · prevention only",
+      desc: "BLIND SPOT: Cracking happens fully off-network. hashcat -m 18200 for RC4 AS-REP hashes (fast). hashcat -m 19700 for AES256 (slower). Mitigation is preventive: remove DONT_REQUIRE_PREAUTH flag, enforce strong passwords, use gMSA.",
+      src: "HackTricks; hashcat.net; ADSecurity.org" },
+  ],
+
+  edges: [
+    { f: "creds", t: "rubeus_asrep" },
+    { f: "creds", t: "imp_npusers" },
+    { f: "creds", t: "powerview" },
+    { f: "creds", t: "username_list", blind: true },
+    { f: "rubeus_asrep", t: "asreq_rc4" },
+    { f: "rubeus_asrep", t: "asreq_aes" },
+    { f: "imp_npusers", t: "asreq_rc4" },
+    { f: "imp_npusers", t: "asreq_aes" },
+    { f: "powerview", t: "asreq_rc4" },
+    { f: "username_list", t: "asreq_rc4", blind: true },
+    { f: "asreq_rc4", t: "ev_4768" },
+    { f: "asreq_aes", t: "ev_4768" },
+    { f: "ev_4768", t: "direct_out" },
+    { f: "ev_4768", t: "pcap_extract" },
+    { f: "direct_out", t: "crack" },
+    { f: "pcap_extract", t: "crack", blind: true },
+  ],
+};
+
+export default model;

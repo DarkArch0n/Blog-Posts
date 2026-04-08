@@ -1,6 +1,150 @@
-﻿// T1003.001 - LSASS Memory
-// Parent: T1003 - OS Credential Dumping
-// Tactic: CredentialAccess
-// Status: Placeholder - no DDM built yet
+// T1003.001 — LSASS Memory — Detection Data Model
+// Tactic: Credential Access
 
-export default null;
+const model = {
+  metadata: {
+    tcode: "T1003.001",
+    name: "LSASS Memory",
+    tactic: "Credential Access",
+    platform: "Windows",
+    version: "v1.0",
+  },
+
+  detectNodeId: "ev_sysmon10",
+
+  layout: {
+    svgWidth: 1000,
+    svgHeight: 560,
+    columns: [
+      { label: "PREREQUISITE", x: 70  },
+      { label: "DUMP METHOD",  x: 250 },
+      { label: "DUMP API",     x: 430 },
+      { label: "DETECTION",    x: 620 },
+      { label: "EXTRACTION",   x: 800 },
+      { label: "OUTCOME",      x: 940 },
+    ],
+    separators: [160, 340, 525, 710, 870],
+    annotations: [
+      { text: "All methods touch LSASS — Sysmon 10 covers all", x: 620, y: 400, color: "#f57f17", fontWeight: "600" },
+    ],
+  },
+
+  nodes: [
+    { id: "admin", label: "Local Admin", sub: "or SYSTEM", x: 70, y: 260, r: 40, type: "source",
+      tags: ["Local admin", "SYSTEM", "SeDebugPrivilege"],
+      telemetry: [],
+      api: "Requires local admin, SYSTEM, or SeDebugPrivilege on target host",
+      artifact: "Admin logon session — Event 4624 type 2/10 · privilege use",
+      desc: "LSASS memory dumping requires local administrator privileges, SYSTEM, or SeDebugPrivilege on the target host. Attackers typically obtain this via privilege escalation, lateral movement with admin creds, or exploitation.",
+      src: "MITRE ATT&CK T1003.001" },
+
+    { id: "mimikatz", label: "Mimikatz", sub: "sekurlsa::*", x: 250, y: 80, r: 36, type: "source",
+      tags: ["sekurlsa::logonpasswords", "sekurlsa::wdigest", "In-memory"],
+      telemetry: ["Sysmon 1", "Sysmon 10"],
+      api: "OpenProcess(LSASS) → ReadProcessMemory() → parse SSP structures",
+      artifact: "Sysmon EID 1: mimikatz.exe · Sysmon EID 10: LSASS access · EDR alert",
+      desc: "Mimikatz sekurlsa::logonpasswords opens LSASS, reads SSP credential structures in memory, and extracts plaintext passwords (if WDigest enabled), NTLM hashes, and Kerberos tickets. Real-time extraction — no dump file written to disk. Primary detection via Sysmon EID 10 (process access to lsass.exe).",
+      src: "gentilkiwi/mimikatz; adsecurity.org — Mimikatz guide" },
+
+    { id: "procdump", label: "procdump.exe", sub: "-ma lsass.exe", x: 250, y: 200, r: 36, type: "source",
+      tags: ["procdump -ma", "Sysinternals", "LOTL signed binary"],
+      telemetry: ["Sysmon 1", "Sysmon 11"],
+      api: "MiniDumpWriteDump() via procdump.exe — Microsoft-signed LOTL binary",
+      artifact: "Sysmon EID 1: procdump.exe -ma lsass · EID 11: .dmp file created",
+      desc: "Sysinternals procdump.exe creates a full memory dump of LSASS. Microsoft-signed binary — evades signature-based detection. Writes lsass.dmp to disk. Attacker exfiltrates the dump and parses offline with Mimikatz sekurlsa::minidump. Detectable via Sysmon EID 1 (process args) and EID 11 (file create).",
+      src: "Sysinternals procdump; MITRE T1003.001" },
+
+    { id: "comsvcs", label: "comsvcs.dll", sub: "MiniDump", x: 250, y: 320, r: 36, type: "source",
+      tags: ["rundll32 comsvcs.dll", "MiniDump", "No external tools"],
+      telemetry: ["Sysmon 1"],
+      api: "rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump <PID> out.dmp full",
+      artifact: "Sysmon EID 1: rundll32 with comsvcs.dll MiniDump args · .dmp file",
+      desc: "Native Windows DLL comsvcs.dll exports MiniDump function, called via rundll32. No external tools needed — pure living-off-the-land. Requires the LSASS PID (from tasklist). Dumps LSASS to a .dmp file for offline parsing.",
+      src: "LOLBAS comsvcs.dll; MITRE T1003.001" },
+
+    { id: "taskmgr", label: "Task Manager", sub: "Create Dump", x: 250, y: 440, r: 36, type: "source",
+      tags: ["Task Manager", "Right-click → Create dump", "GUI method"],
+      telemetry: ["Sysmon 11"],
+      api: "Task Manager → right-click lsass.exe → Create dump file → MiniDumpWriteDump()",
+      artifact: "Sysmon EID 11: lsass.DMP in %TEMP% · no command-line args to detect",
+      desc: "Windows Task Manager can create a full process dump of LSASS via right-click → Create dump file. Writes to %TEMP%\\lsass.DMP. No command-line arguments — harder to detect via process creation monitoring. Requires the user to be running Task Manager as admin.",
+      src: "MITRE T1003.001; Task Manager documentation" },
+
+    { id: "nanodump", label: "nanodump", sub: "Stealth dump", x: 250, y: 530, r: 32, type: "source",
+      tags: ["nanodump", "Syscalls", "PPL bypass", "No MiniDumpWriteDump"],
+      telemetry: [],
+      api: "Direct syscalls (NtReadVirtualMemory) — avoids MiniDumpWriteDump API hooks",
+      artifact: "⚠ Evades API hooking · custom dump format · may bypass Sysmon 10",
+      desc: "nanodump uses direct syscalls to read LSASS memory without calling MiniDumpWriteDump, bypassing API hooking by EDR/AV. Can dump to a custom format, write to pipe, or exfiltrate directly. May evade Sysmon EID 10 if the driver-level callback is not triggered. Represents the advanced evasion frontier.",
+      src: "helpsystems/nanodump — github.com/helpsystems/nanodump" },
+
+    { id: "api_open", label: "OpenProcess", sub: "LSASS PID", x: 430, y: 180, r: 34, type: "source",
+      tags: ["OpenProcess()", "PROCESS_ALL_ACCESS", "LSASS PID"],
+      telemetry: ["Sysmon 10"],
+      api: "OpenProcess(PROCESS_ALL_ACCESS, FALSE, <lsass_pid>) → handle to LSASS",
+      artifact: "Sysmon EID 10: SourceImage → TargetImage=lsass.exe · GrantedAccess",
+      desc: "All dump methods ultimately call OpenProcess() to obtain a handle to LSASS with PROCESS_VM_READ or PROCESS_ALL_ACCESS. Sysmon EID 10 fires on this process access event, capturing SourceImage, TargetImage (lsass.exe), and GrantedAccess mask.",
+      src: "Microsoft Win32 API; Sysmon documentation" },
+
+    { id: "api_dump", label: "MiniDump", sub: "WriteDump()", x: 430, y: 360, r: 34, type: "source",
+      tags: ["MiniDumpWriteDump()", "dbghelp.dll", "Full dump"],
+      telemetry: ["Sysmon 11"],
+      api: "MiniDumpWriteDump(hProcess, PID, hFile, MiniDumpWithFullMemory, ...)",
+      artifact: "Sysmon EID 11: .dmp file creation · dbghelp.dll loaded",
+      desc: "Most dump tools call MiniDumpWriteDump() from dbghelp.dll to create a minidump file of LSASS. This is the standard Windows API for process dumps. EDR products often hook this function to detect credential dumping attempts.",
+      src: "Microsoft dbghelp.dll documentation" },
+
+    { id: "ev_sysmon10", label: "Sysmon 10", sub: "LSASS Access", x: 620, y: 260, r: 50, type: "detect",
+      tags: ["Sysmon EID 10", "TargetImage: lsass.exe", "GrantedAccess", "RunAsPPL"],
+      telemetry: ["Sysmon 10"],
+      api: "Sysmon driver callback on process access — fires when any process opens LSASS",
+      artifact: "OPTIMAL: Sysmon EID 10 with TargetImage=lsass.exe · GrantedAccess mask · SourceImage",
+      desc: "OPTIMAL DETECTION NODE. Sysmon Event ID 10 (ProcessAccess) fires whenever any process opens a handle to lsass.exe. Key fields: SourceImage (what process accessed LSASS), TargetImage (lsass.exe), GrantedAccess (0x1010=PROCESS_QUERY_LIMITED+VM_READ, 0x1FFFFF=FULL_ACCESS). Filter out legitimate sources (csrss.exe, services.exe, WmiPrvSE.exe). Combine with RunAsPPL (Protected Process Light) to prevent LSASS access entirely. EDR products also detect this via kernel callbacks.",
+      src: "Sysmon EID 10 documentation; Microsoft RunAsPPL; MITRE T1003.001" },
+
+    { id: "offline_parse", label: "Offline Parse", sub: "sekurlsa::minidump", x: 800, y: 180, r: 36, type: "source",
+      tags: ["sekurlsa::minidump", "pypykatz", "Offline analysis"],
+      telemetry: [],
+      api: "Mimikatz: sekurlsa::minidump lsass.dmp → sekurlsa::logonpasswords",
+      artifact: "Offline on attacker system — no target host artifacts during parsing",
+      desc: "Dump file is exfiltrated to attacker system and parsed offline. Mimikatz sekurlsa::minidump loads the dump, then sekurlsa::logonpasswords extracts credentials. pypykatz (Python) also parses minidumps. No artifacts on target during offline parsing.",
+      src: "gentilkiwi/mimikatz; skelsec/pypykatz" },
+
+    { id: "realtime", label: "Real-time", sub: "Extract", x: 800, y: 360, r: 36, type: "source",
+      tags: ["Live extraction", "No dump file", "In-memory only"],
+      telemetry: [],
+      api: "ReadProcessMemory() → parse SSP structures in real-time — no file written",
+      artifact: "No .dmp file on disk — credentials extracted directly from live memory",
+      desc: "Mimikatz sekurlsa::logonpasswords and similar tools extract credentials in real-time from live LSASS memory without writing a dump file. Leaves fewer file-based artifacts but still triggers Sysmon EID 10 for the process access.",
+      src: "gentilkiwi/mimikatz" },
+
+    { id: "creds_out", label: "Credentials", sub: "Extracted", x: 940, y: 260, r: 42, type: "source",
+      tags: ["NTLM hashes", "Plaintext (WDigest)", "Kerberos TGTs", "DPAPI keys"],
+      telemetry: [],
+      api: "Output: NTLM hashes, plaintext passwords, Kerberos tickets, DPAPI masterkeys",
+      artifact: "NTLM hashes for PtH · plaintext for direct logon · TGTs for PtT · DPAPI keys",
+      desc: "LSASS memory contains credentials from all active logon sessions. Extracted data includes: NTLM hashes (for Pass-the-Hash), plaintext passwords (if WDigest enabled — default on Server 2008R2 and below), Kerberos TGTs and session keys (for Pass-the-Ticket), and DPAPI master keys. This single extraction enables multiple subsequent attack paths.",
+      src: "MITRE T1003.001; adsecurity.org — LSASS credential types" },
+  ],
+
+  edges: [
+    { f: "admin", t: "mimikatz" },
+    { f: "admin", t: "procdump" },
+    { f: "admin", t: "comsvcs" },
+    { f: "admin", t: "taskmgr" },
+    { f: "admin", t: "nanodump" },
+    { f: "mimikatz", t: "api_open" },
+    { f: "procdump", t: "api_dump" },
+    { f: "comsvcs", t: "api_dump" },
+    { f: "taskmgr", t: "api_dump" },
+    { f: "nanodump", t: "api_open" },
+    { f: "api_open", t: "ev_sysmon10" },
+    { f: "api_dump", t: "ev_sysmon10" },
+    { f: "ev_sysmon10", t: "offline_parse" },
+    { f: "ev_sysmon10", t: "realtime" },
+    { f: "offline_parse", t: "creds_out" },
+    { f: "realtime", t: "creds_out" },
+  ],
+};
+
+export default model;

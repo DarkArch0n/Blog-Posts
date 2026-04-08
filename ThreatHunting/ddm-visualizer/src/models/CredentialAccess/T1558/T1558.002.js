@@ -1,6 +1,140 @@
-﻿// T1558.002 - Silver Ticket
-// Parent: T1558 - Steal or Forge Kerberos Tickets
-// Tactic: CredentialAccess
-// Status: Placeholder - no DDM built yet
+﻿// T1558.002 — Silver Ticket — Detection Data Model
+// Tactic: Credential Access
 
-export default null;
+const model = {
+  metadata: {
+    tcode: "T1558.002",
+    name: "Silver Ticket",
+    tactic: "Credential Access",
+    platform: "Windows Active Directory",
+    version: "v1.0",
+  },
+
+  detectNodeId: "ev_4624",
+
+  layout: {
+    svgWidth: 1000,
+    svgHeight: 540,
+    columns: [
+      { label: "HASH SOURCE",  x: 80  },
+      { label: "FORGE TGS",    x: 260 },
+      { label: "USE TGS",      x: 440 },
+      { label: "TARGET HOST",  x: 640 },
+      { label: "OUTCOME",      x: 860 },
+    ],
+    separators: [170, 350, 540, 750],
+    annotations: [
+      { text: "Forging is fully offline — zero telemetry", x: 260, y: 495, color: "#c62828", fontStyle: "italic" },
+      { text: "BYPASSES DC — no Event 4769", x: 440, y: 495, color: "#c62828", fontWeight: "600" },
+      { text: "Correlate: 4624 with no 4769", x: 640, y: 395, color: "#f57f17", fontWeight: "600" },
+    ],
+  },
+
+  nodes: [
+    { id: "kerberoast", label: "Kerberoast", sub: "T1558.003", x: 80, y: 120, r: 36, type: "source",
+      tags: ["hashcat -m 13100", "Crack TGS hash", "Service acct NTLM"],
+      telemetry: ["4769"],
+      api: "Kerberoast service account → crack $krb5tgs$ hash → obtain NTLM hash",
+      artifact: "Event 4769 during Kerberoasting phase · cracked hash yields service key",
+      desc: "Most common path to Silver Ticket. Attacker Kerberoasts the target service account (T1558.003), obtains the $krb5tgs$ hash, and cracks it offline with hashcat -m 13100 (RC4) or -m 19700 (AES). The cracked password yields the service account's NTLM hash needed to forge the TGS.",
+      src: "MITRE T1558.003; HackTricks Kerberoast → Silver Ticket chain" },
+
+    { id: "dcsync_svc", label: "DCSync", sub: "Service Acct", x: 80, y: 260, r: 36, type: "source",
+      tags: ["lsadump::dcsync /user:svc_sql", "secretsdump.py"],
+      telemetry: ["4662"],
+      api: "DrsGetNCChanges() targeting specific service account — extracts NTLM hash",
+      artifact: "Event 4662: DS-Replication-Get-Changes on service account object",
+      desc: "DCSync targeting the specific service account whose hash is needed. More direct than Kerberoasting — no cracking needed — but requires replication privileges (Domain Admin or delegated).",
+      src: "adsecurity.org DCSync; Impacket secretsdump.py" },
+
+    { id: "lsass_svc", label: "LSASS Dump", sub: "Service Host", x: 80, y: 400, r: 36, type: "source",
+      tags: ["Mimikatz", "sekurlsa::logonpasswords", "Service host"],
+      telemetry: ["Sysmon 10"],
+      api: "MiniDumpWriteDump() on host running target service — extracts svc hash",
+      artifact: "Sysmon EID 10: LSASS access on service host · service account hash extracted",
+      desc: "If the attacker has local admin on the host running the target service, they dump LSASS to extract the service account's NTLM hash directly from memory. No cracking required.",
+      src: "MITRE T1003.001; gentilkiwi/mimikatz" },
+
+    { id: "mimi_silver", label: "Mimikatz", sub: "kerberos::golden", x: 260, y: 120, r: 36, type: "blind",
+      tags: ["/service:cifs", "/service:http", "/target:<host>"],
+      telemetry: [],
+      api: "kerberos::golden /domain:<d> /sid:<s> /target:<host> /service:cifs /rc4:<hash>",
+      artifact: "⚠ Offline forging — zero network traffic · zero DC events",
+      desc: "BLIND SPOT: Mimikatz kerberos::golden with /service: flag forges a TGS (not TGT). The forged ticket targets a specific service on a specific host. Common services: cifs (SMB), http (web), ldap, mssql, host (PSRemoting). Zero DC telemetry during forging.",
+      src: "gentilkiwi/mimikatz; adsecurity.org — Silver Ticket Attack" },
+
+    { id: "imp_silver", label: "Impacket", sub: "ticketer.py -spn", x: 260, y: 260, r: 36, type: "blind",
+      tags: ["ticketer.py", "-spn cifs/<host>", ".ccache output"],
+      telemetry: [],
+      api: "ticketer.py -nthash <hash> -domain-sid <sid> -domain <d> -spn cifs/<host> user",
+      artifact: "⚠ Offline — .ccache file on attacker system · no DC contact",
+      desc: "BLIND SPOT: Impacket ticketer.py with -spn flag forges a service ticket offline, outputting a .ccache file. Supports CIFS, HTTP, LDAP, MSSQL, and other SPNs. Zero artifacts during forging.",
+      src: "Impacket — github.com/fortra/impacket" },
+
+    { id: "rubeus_silver", label: "Rubeus", sub: "silver", x: 260, y: 400, r: 36, type: "blind",
+      tags: ["Rubeus silver", "/service:cifs/<host>", "/ptt"],
+      telemetry: [],
+      api: "Rubeus.exe silver /rc4:<hash> /sid:<sid> /service:cifs/<host> /user:Admin /ptt",
+      artifact: "⚠ Offline forging — /ptt injects directly into LSASS",
+      desc: "BLIND SPOT: Rubeus silver forges a TGS offline. /service: specifies the target SPN. /ptt auto-injects into the current logon session. Supports RC4 and AES256 service keys.",
+      src: "GhostPack/Rubeus — github.com/GhostPack/Rubeus" },
+
+    { id: "ptt_svc", label: "Pass-the-Ticket", sub: "Direct to Service", x: 440, y: 180, r: 38, type: "blind",
+      tags: ["No TGS-REQ to DC", "No Event 4769", "Direct to target"],
+      telemetry: [],
+      api: "Forged TGS presented directly to service — BYPASSES KDC entirely",
+      artifact: "⚠ CRITICAL: No TGS-REQ to DC · No Event 4769 · DC is completely unaware",
+      desc: "BLIND SPOT: The forged TGS is presented directly to the target service WITHOUT contacting the DC. The KDC never sees a TGS-REQ for this ticket. Event 4769 NEVER fires. This is the key difference from Golden Ticket — Silver Ticket completely bypasses the Domain Controller, making DC-based detection impossible.",
+      src: "adsecurity.org — Silver Ticket; MITRE T1558.002" },
+
+    { id: "direct_svc", label: "Impacket -k", sub: "Direct Access", x: 440, y: 360, r: 36, type: "blind",
+      tags: ["psexec.py -k", "smbclient.py -k", "No DC contact"],
+      telemetry: [],
+      api: "Impacket tools with -k -no-pass → forged TGS sent directly to target",
+      artifact: "⚠ No KDC involvement · forged ticket goes straight to target port",
+      desc: "BLIND SPOT: Impacket tools use the forged ticket via -k flag. The forged TGS goes directly to the target service (SMB 445, MSSQL 1433). The DC is never contacted.",
+      src: "Impacket — github.com/fortra/impacket" },
+
+    { id: "ev_4624", label: "Service Auth", sub: "Event 4624", x: 640, y: 260, r: 50, type: "detect",
+      tags: ["Event 4624 type 3", "No matching 4769", "PAC validation", "MDI"],
+      telemetry: ["4624", "4634"],
+      api: "Target service decrypts TGS with its own key — validates PAC (if enabled)",
+      artifact: "DETECT: Event 4624 type 3 with NO correlating 4769 on DC · PAC validation failure",
+      desc: "OPTIMAL DETECTION NODE (weaker than Golden Ticket). The target service decrypts the forged TGS using its own key (correct, since attacker used real hash). Event 4624 type 3 (network logon) fires on the target. Detection requires CORRELATION: 4624 on target with no corresponding 4769 on any DC. PAC validation (ValidateKdcPacSignature=1) will fail because the PAC server signature needs the krbtgt key. Microsoft Defender for Identity detects via PAC anomalies.",
+      src: "MITRE T1558.002; Microsoft — PAC Validation; MDI Silver Ticket detection" },
+
+    { id: "svc_access", label: "Service Access", sub: "Targeted", x: 860, y: 180, r: 40, type: "source",
+      tags: ["CIFS/SMB", "HTTP/HTTPS", "LDAP", "MSSQL", "HOST/PSRemoting"],
+      telemetry: ["4624"],
+      api: "Authenticated access to specific service — CIFS=shares, HOST=PSRemoting, etc.",
+      artifact: "Service-specific access · SMB file access · remote commands · SQL queries",
+      desc: "Silver Ticket grants access to one specific service on one specific host. Common targets: CIFS (file shares, admin$), HTTP (ADFS, web apps), LDAP (directory), MSSQL (databases), HOST (PSRemoting, schtasks). Scope limited to the compromised service key.",
+      src: "adsecurity.org — Silver Ticket; HackTricks Silver Ticket" },
+
+    { id: "stealth", label: "Stealth", sub: "No DC Logs", x: 860, y: 360, r: 36, type: "blind",
+      tags: ["No Event 4769", "No DC awareness", "Host-only evidence"],
+      telemetry: [],
+      api: "DC has zero record of this authentication — only target host has evidence",
+      artifact: "⚠ DC event logs contain nothing · target host logs only · clear logs = invisible",
+      desc: "BLIND SPOT: Silver Ticket is stealthier than Golden Ticket because the DC has no record of the authentication. All evidence exists only on the target host (Event 4624). If target host logs are cleared or not forwarded to SIEM, the access is invisible.",
+      src: "MITRE T1558.002; adsecurity.org" },
+  ],
+
+  edges: [
+    { f: "kerberoast", t: "mimi_silver" },
+    { f: "kerberoast", t: "imp_silver" },
+    { f: "dcsync_svc", t: "mimi_silver" },
+    { f: "dcsync_svc", t: "imp_silver" },
+    { f: "lsass_svc", t: "mimi_silver" },
+    { f: "lsass_svc", t: "rubeus_silver" },
+    { f: "mimi_silver", t: "ptt_svc", blind: true },
+    { f: "imp_silver", t: "direct_svc", blind: true },
+    { f: "rubeus_silver", t: "ptt_svc", blind: true },
+    { f: "ptt_svc", t: "ev_4624", blind: true },
+    { f: "direct_svc", t: "ev_4624", blind: true },
+    { f: "ev_4624", t: "svc_access" },
+    { f: "ev_4624", t: "stealth" },
+  ],
+};
+
+export default model;
