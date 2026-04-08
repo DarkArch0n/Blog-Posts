@@ -1,0 +1,38 @@
+title: Conditional Access Policy Modification - Azure AD Policy Weakening
+id: a9b0c1d2-e3f4-4a5b-6c7d-8e9f0a1b2c34
+status: experimental
+description: |
+  Detects modifications to Azure AD Conditional Access policies that could weaken
+  authentication requirements. Monitors for policy disabling, exclusion additions,
+  MFA requirement removal, and trusted location changes.
+references:
+  - https://attack.mitre.org/techniques/T1556/009/
+  - https://learn.microsoft.com/en-us/entra/identity/conditional-access/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.defense_evasion
+  - attack.t1556.009
+logsource:
+  product: azure
+  service: auditlogs
+detection:
+  selection_policy_change:
+    operationName|contains:
+      - 'Update conditional access policy'
+      - 'Delete conditional access policy'
+      - 'Add conditional access policy'
+  selection_named_locations:
+    operationName|contains:
+      - 'Update named location'
+      - 'Add named location'
+  selection_graph_api:
+    operationName|contains:
+      - 'Update policy'
+    targetResources.type: 'Policy'
+  condition: selection_policy_change or selection_named_locations or selection_graph_api
+falsepositives:
+  - Legitimate Conditional Access policy administration
+  - Planned security policy changes
+level: high

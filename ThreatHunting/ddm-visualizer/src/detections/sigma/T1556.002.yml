@@ -1,0 +1,30 @@
+title: Password Filter DLL - Malicious Password Filter Registration
+id: f2a3b4c5-d6e7-4f8a-9b0c-1d2e3f4a5b6c
+status: experimental
+description: |
+  Detects registration of malicious password filter DLLs by monitoring for modifications
+  to HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Notification Packages registry key and
+  new DLLs being loaded by lsass.exe that match password filter patterns.
+references:
+  - https://attack.mitre.org/techniques/T1556/002/
+  - https://www.ired.team/offensive-security/credential-access-and-credential-dumping/t1174-password-filter-dll
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.persistence
+  - attack.t1556.002
+logsource:
+  product: windows
+  category: registry_set
+detection:
+  selection_notification_packages:
+    TargetObject|contains: 'Control\Lsa\Notification Packages'
+  selection_lsa_reg:
+    TargetObject|contains: 'Control\Lsa'
+    Details|contains: '.dll'
+  condition: selection_notification_packages or selection_lsa_reg
+falsepositives:
+  - Legitimate password filter DLLs (e.g., fine-grained password policies)
+  - Security products that register password filters
+level: high

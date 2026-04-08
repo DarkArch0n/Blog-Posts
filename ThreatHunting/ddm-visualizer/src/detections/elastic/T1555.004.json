@@ -1,0 +1,27 @@
+{
+  "name": "Windows Credential Manager Access via vaultcmd or cmdkey",
+  "description": "Detects Windows Credential Manager access via vaultcmd, cmdkey, SharpDPAPI vault extraction, and Mimikatz vault::cred. Covers enumeration and DPAPI-based credential extraction.",
+  "risk_score": 60,
+  "severity": "medium",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and ((process.name == \"vaultcmd.exe\" and process.args : (\"*listcreds*\", \"*list*\")) or (process.name == \"cmdkey.exe\" and process.args : \"/list\") or process.args : (\"*SharpDPAPI*\", \"*vault::cred*\", \"*dpapi::cred*\") or process.args : (\"*Microsoft\\\\Credentials*\", \"*Microsoft\\\\Vault*\", \"*Microsoft\\\\Protect*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1555",
+          "name": "Credentials from Password Stores",
+          "subtechnique": [{ "id": "T1555.004", "name": "Windows Credential Manager" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1555/004/"
+  ],
+  "tags": ["Credential Access", "Credential Manager", "DPAPI", "T1555.004"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*"]
+}

@@ -1,0 +1,42 @@
+title: Container API Credential Access - Kubernetes Secrets and Docker Env
+id: b6c7d8e9-f0a1-4b2c-3d4e-5f6a7b8c9d01
+status: experimental
+description: |
+  Detects container credential access via kubectl get secrets, Docker inspect,
+  ServiceAccount token reads, and etcd direct access. Covers Kubernetes secret
+  enumeration and container environment variable extraction.
+references:
+  - https://attack.mitre.org/techniques/T1552/007/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1552.007
+logsource:
+  category: process_creation
+detection:
+  selection_kubectl_secrets:
+    CommandLine|contains|all:
+      - 'kubectl'
+      - 'secret'
+  selection_docker_inspect:
+    CommandLine|contains|all:
+      - 'docker'
+      - 'inspect'
+  selection_sa_token:
+    CommandLine|contains:
+      - '/var/run/secrets/kubernetes.io'
+      - 'serviceaccount/token'
+  selection_etcd:
+    CommandLine|contains:
+      - 'etcdctl'
+      - '/registry/secrets'
+  selection_env_dump:
+    CommandLine|contains:
+      - '/proc/1/environ'
+      - '/proc/self/environ'
+  condition: selection_kubectl_secrets or selection_docker_inspect or selection_sa_token or selection_etcd or selection_env_dump
+falsepositives:
+  - Legitimate Kubernetes administration
+  - Container debugging
+level: medium

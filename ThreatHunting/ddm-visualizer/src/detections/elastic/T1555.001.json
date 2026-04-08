@@ -1,0 +1,27 @@
+{
+  "name": "Keychain Access - macOS Credential Extraction",
+  "description": "Detects macOS Keychain credential extraction using security command, chainbreaker, or direct keychain file access. Covers find-generic-password, dump-keychain, and keychain unlock operations.",
+  "risk_score": 75,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and ((process.name == \"security\" and process.args : (\"find-generic-password\", \"find-internet-password\", \"dump-keychain\", \"unlock-keychain\")) or process.args : \"chainbreaker\" or process.args : (\"*login.keychain*\", \"*System.keychain*\", \"*.keychain-db*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1555",
+          "name": "Credentials from Password Stores",
+          "subtechnique": [{ "id": "T1555.001", "name": "Keychain" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1555/001/"
+  ],
+  "tags": ["Credential Access", "macOS", "Keychain", "T1555.001"],
+  "index": ["logs-endpoint.events.process-*"]
+}

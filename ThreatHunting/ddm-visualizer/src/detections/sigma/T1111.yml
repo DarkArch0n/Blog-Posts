@@ -1,0 +1,37 @@
+title: Multi-Factor Authentication Interception - MFA Token Theft
+id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c56
+status: experimental
+description: |
+  Detects MFA interception through smart card API hooking (SCardTransmit), OTP phishing
+  proxies (EvilGinx2), and SS7 interception tools. Monitors for processes accessing
+  WinSCard API and real-time phishing proxy frameworks.
+references:
+  - https://attack.mitre.org/techniques/T1111/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1111
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_scard_hook:
+    CommandLine|contains:
+      - 'SCardTransmit'
+      - 'SCardConnect'
+      - 'winscard'
+  selection_mfa_proxy:
+    CommandLine|contains:
+      - 'evilginx'
+      - 'modlishka'
+      - 'muraena'
+  selection_ss7:
+    CommandLine|contains:
+      - 'ss7'
+      - 'SigPloit'
+  condition: selection_scard_hook or selection_mfa_proxy or selection_ss7
+falsepositives:
+  - Legitimate smart card middleware
+  - Security testing tools
+level: high

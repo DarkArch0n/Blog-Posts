@@ -1,0 +1,22 @@
+{
+  "name": "Steal Application Access Token - OAuth Token Theft and Illicit Consent",
+  "description": "Detects application access token theft via illicit OAuth consent grants, high-privilege scope approvals, and CLI token file access for Azure CLI, gcloud, and AWS credentials.",
+  "risk_score": 75,
+  "severity": "high",
+  "type": "query",
+  "language": "kuery",
+  "query": "event.dataset: \"azure.auditlogs\" and event.action: (\"Consent to application\" or \"Add app role assignment\" or \"Add OAuth2PermissionGrant\")",
+  "note": "For CLI token theft: process.command_line: (*accessTokens.json* or *azureProfile.json* or *.azure/msal_token_cache* or *gcloud/credentials.db* or *aws/credentials*)",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [{ "id": "T1528", "name": "Steal Application Access Token" }]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1528/"
+  ],
+  "tags": ["Credential Access", "OAuth", "Token Theft", "T1528"],
+  "index": ["filebeat-*", "logs-azure.auditlogs-*"]
+}

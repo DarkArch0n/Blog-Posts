@@ -1,0 +1,48 @@
+title: Steal or Forge Authentication Certificates - AD CS Abuse
+id: a7b8c9d0-e1f2-4a3b-4c5d-6e7f8a9b0c12
+status: experimental
+description: |
+  Detects AD CS (Active Directory Certificate Services) abuse for certificate theft or
+  forgery. Covers Certify/Certipy enumeration, ESC1-ESC8 exploitation, certificate
+  requests with SAN mismatches, and CA private key export.
+references:
+  - https://attack.mitre.org/techniques/T1649/
+  - https://posts.specterops.io/certified-pre-owned-d95910965cd2
+  - https://github.com/ly4k/Certipy
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.persistence
+  - attack.t1649
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_certify:
+    CommandLine|contains:
+      - 'Certify'
+      - 'Certipy'
+      - 'ForgeCert'
+      - 'PassTheCert'
+      - 'DVCKM'
+  selection_certreq:
+    Image|endswith: '\certreq.exe'
+    CommandLine|contains:
+      - '-attrib'
+      - 'SAN:'
+  selection_ca_backup:
+    Image|endswith: '\certutil.exe'
+    CommandLine|contains:
+      - '-backup'
+      - '-exportPFX'
+      - '-ca.cert'
+  selection_cert_events:
+    EventID:
+      - 4886
+      - 4887
+  condition: selection_certify or selection_certreq or selection_ca_backup or selection_cert_events
+falsepositives:
+  - Legitimate certificate requests
+  - CA administration
+level: high

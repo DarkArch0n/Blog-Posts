@@ -1,0 +1,35 @@
+title: Network Device Authentication Modification - IOS Implant
+id: b4c5d6e7-f8a9-4b0c-1d2e-3f4a5b6c7d8f
+status: experimental
+description: |
+  Detects network device authentication modifications including modified IOS images,
+  ROMMON backdoors, and authentication bypass configurations. Monitors for configuration
+  changes to authentication methods on routers and switches.
+references:
+  - https://attack.mitre.org/techniques/T1556/004/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.persistence
+  - attack.t1556.004
+logsource:
+  product: cisco
+  category: configuration
+detection:
+  selection_auth_changes:
+    CommandLine|contains:
+      - 'aaa authentication'
+      - 'enable secret'
+      - 'username'
+      - 'login local'
+      - 'no aaa'
+  selection_boot_image:
+    CommandLine|contains:
+      - 'boot system'
+      - 'upgrade rom-monitor'
+  condition: selection_auth_changes or selection_boot_image
+falsepositives:
+  - Legitimate network administration
+  - Scheduled configuration updates
+level: high

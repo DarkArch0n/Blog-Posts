@@ -1,0 +1,27 @@
+{
+  "name": "SAM Database Access - Registry Hive Credential Extraction",
+  "description": "Detects SAM database credential extraction via registry save operations or Volume Shadow Copy access. Covers reg.exe, esentutl.exe, vssadmin, and Impacket secretsdump.",
+  "risk_score": 85,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and ((process.name == \"reg.exe\" and process.args : \"save\" and process.args : (\"sam\", \"system\", \"security\")) or (process.name == \"esentutl.exe\" and process.args : (\"sam\", \"ntds\")) or (process.name : (\"vssadmin.exe\", \"wmic.exe\") and process.args : \"*shadow*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1003",
+          "name": "OS Credential Dumping",
+          "subtechnique": [{ "id": "T1003.002", "name": "Security Account Manager" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1003/002/"
+  ],
+  "tags": ["Credential Access", "SAM", "Registry", "T1003.002"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*"]
+}

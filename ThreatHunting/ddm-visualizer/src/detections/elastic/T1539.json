@@ -1,0 +1,22 @@
+{
+  "name": "Steal Web Session Cookie - Browser Cookie Database Access by Non-Browser Process",
+  "description": "Detects web session cookie theft by monitoring for non-browser processes accessing Chrome/Edge/Firefox cookie databases, infostealer tools, and EvilGinx2 session capture.",
+  "risk_score": 75,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "file where event.type == \"access\" and file.name : (\"Cookies\", \"cookies.sqlite\") and file.path : (\"*Chrome*User Data*\", \"*Edge*User Data*\", \"*Firefox*Profiles*\") and not process.name : (\"chrome.exe\", \"msedge.exe\", \"firefox.exe\", \"brave.exe\")",
+  "note": "Alternative for tool detection: process.command_line: (*SharpChromium* or *CookieKatz* or *chrome-cookie*)",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [{ "id": "T1539", "name": "Steal Web Session Cookie" }]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1539/"
+  ],
+  "tags": ["Credential Access", "Cookie Theft", "Session Hijacking", "T1539"],
+  "index": ["winlogbeat-*", "logs-windows.sysmon_operational-*", "logs-endpoint.events.file-*"]
+}

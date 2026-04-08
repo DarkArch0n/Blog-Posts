@@ -1,0 +1,27 @@
+{
+  "name": "LSA Secrets Access - Registry Credential Extraction",
+  "description": "Detects LSA Secrets extraction from the SECURITY registry hive. Covers reg save, Mimikatz lsadump::secrets, and Impacket secretsdump approaches.",
+  "risk_score": 85,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and ((process.name == \"reg.exe\" and process.args : \"save\" and process.args : \"*security*\") or (process.args : (\"*lsadump::secrets*\", \"*lsadump::cache*\")))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1003",
+          "name": "OS Credential Dumping",
+          "subtechnique": [{ "id": "T1003.004", "name": "LSA Secrets" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1003/004/"
+  ],
+  "tags": ["Credential Access", "LSA Secrets", "Registry", "T1003.004"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*"]
+}

@@ -1,0 +1,42 @@
+title: Password Cracking Tools - Hashcat or John the Ripper Execution
+id: c5d6e7f8-a9b0-4c1d-2e3f-4a5b6c7d8e9f
+status: experimental
+description: |
+  Detects execution of common password cracking tools: Hashcat, John the Ripper, and
+  related utilities. While cracking may occur offline, detects when these tools are run
+  on compromised systems or when credential files are staged for cracking.
+references:
+  - https://attack.mitre.org/techniques/T1110/002/
+  - https://hashcat.net/hashcat/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1110.002
+logsource:
+  category: process_creation
+detection:
+  selection_cracking_tools:
+    Image|endswith:
+      - '\hashcat.exe'
+      - '\hashcat64.exe'
+      - '\john.exe'
+      - '/hashcat'
+      - '/john'
+    CommandLine|contains:
+      - 'hashcat'
+      - 'john'
+  selection_hash_modes:
+    CommandLine|contains:
+      - '-m 1000'
+      - '-m 5600'
+      - '-m 13100'
+      - '-m 18200'
+      - '-m 2500'
+      - '--format=NT'
+      - '--format=netntlmv2'
+  condition: selection_cracking_tools or selection_hash_modes
+falsepositives:
+  - Authorized penetration testing
+  - Password audit tools on designated systems
+level: high

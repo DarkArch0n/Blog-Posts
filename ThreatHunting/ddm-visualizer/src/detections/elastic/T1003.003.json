@@ -1,0 +1,27 @@
+{
+  "name": "NTDS.dit Access - Active Directory Database Credential Extraction",
+  "description": "Detects NTDS.dit access for full AD credential extraction via ntdsutil, Volume Shadow Copy, or direct file copy. Covers ntdsutil IFM, vssadmin shadow copy, and esentutl approaches.",
+  "risk_score": 95,
+  "severity": "critical",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and ((process.name == \"ntdsutil.exe\" and process.args : (\"ifm\", \"*create*full*\", \"*ac*i*ntds*\")) or (process.args : \"*ntds.dit*\") or (process.name == \"esentutl.exe\" and process.args : \"*ntds*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1003",
+          "name": "OS Credential Dumping",
+          "subtechnique": [{ "id": "T1003.003", "name": "NTDS" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1003/003/"
+  ],
+  "tags": ["Credential Access", "NTDS", "Active Directory", "T1003.003"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*"]
+}

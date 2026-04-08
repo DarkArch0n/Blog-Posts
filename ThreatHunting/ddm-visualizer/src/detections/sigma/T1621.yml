@@ -1,0 +1,33 @@
+title: MFA Request Generation - Push Notification Bombing
+id: f6a7b8c9-d0e1-4f2a-3b4c-5d6e7f8a9b01
+status: experimental
+description: |
+  Detects MFA push notification bombing (MFA fatigue) by identifying rapid successive
+  authentication attempts that trigger multiple MFA push notifications. Monitors for
+  repeated push denials followed by approval and anomalous authentication frequencies.
+references:
+  - https://attack.mitre.org/techniques/T1621/
+  - https://www.mandiant.com/resources/blog/suspected-russian-activity-targeting-government-corporate
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1621
+logsource:
+  product: azure
+  service: signinlogs
+detection:
+  selection_mfa_denied:
+    ResultType:
+      - '500121'
+      - '50074'
+    Status.errorCode: '500121'
+  selection_mfa_success_after_deny:
+    ResultType: '0'
+    AuthenticationRequirement: 'multiFactorAuthentication'
+  condition: selection_mfa_denied | count() by UserPrincipalName > 5
+  timeframe: 10m
+falsepositives:
+  - Users with MFA issues
+  - Mobile connectivity problems
+level: high

@@ -1,0 +1,26 @@
+{
+  "name": "MFA Request Generation - Push Notification Bombing (MFA Fatigue)",
+  "description": "Detects MFA push notification bombing by identifying rapid successive MFA push denials (5+ in 10 minutes) followed by approval. Covers Azure AD, Okta, and Duo MFA fatigue attacks.",
+  "risk_score": 75,
+  "severity": "high",
+  "type": "threshold",
+  "language": "kuery",
+  "query": "event.dataset: \"azure.signinlogs\" and azure.signinlogs.properties.status.error_code: \"500121\"",
+  "threshold": {
+    "field": ["azure.signinlogs.properties.user_principal_name"],
+    "value": 5
+  },
+  "note": "For Okta: event.dataset: 'okta.system' and event.action: 'user.mfa.factor.verify' and event.outcome: 'FAILURE'. For Duo: source.dataset: 'duo' and result: 'DENY'",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [{ "id": "T1621", "name": "Multi-Factor Authentication Request Generation" }]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1621/"
+  ],
+  "tags": ["Credential Access", "MFA Fatigue", "Push Bombing", "T1621"],
+  "index": ["filebeat-*", "logs-azure.signinlogs-*"]
+}

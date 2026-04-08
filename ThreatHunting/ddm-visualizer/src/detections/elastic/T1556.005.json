@@ -1,0 +1,27 @@
+{
+  "name": "Reversible Encryption Enabled - AllowReversiblePasswordEncryption",
+  "description": "Detects enabling of reversible password encryption in AD, which stores passwords in recoverable format. Monitors for GPO changes and user attribute modifications enabling this dangerous setting.",
+  "risk_score": 80,
+  "severity": "high",
+  "type": "query",
+  "language": "kuery",
+  "query": "(event.code: \"5136\" and winlog.event_data.AttributeLDAPDisplayName: \"ms-DS-AllowReversiblePasswordEncryption\") or (process.command_line: (*AllowReversiblePasswordEncryption* or *STORE_CLEARTEXT* or *reversible*))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1556",
+          "name": "Modify Authentication Process",
+          "subtechnique": [{ "id": "T1556.005", "name": "Reversible Encryption" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1556/005/"
+  ],
+  "tags": ["Credential Access", "Reversible Encryption", "Active Directory", "T1556.005"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-system.security*"]
+}

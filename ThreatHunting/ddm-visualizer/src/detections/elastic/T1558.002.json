@@ -1,0 +1,28 @@
+{
+  "name": "Silver Ticket - Service Ticket With Anomalous Encryption",
+  "description": "Detects potential Silver Ticket usage by identifying Kerberos service ticket requests with RC4 encryption where AES is expected, or network logon events with anomalous Kerberos authentication patterns.",
+  "risk_score": 80,
+  "severity": "high",
+  "type": "query",
+  "language": "kuery",
+  "query": "(event.code: \"4769\" and winlog.event_data.TicketEncryptionType: \"0x17\" and winlog.event_data.TicketOptions: \"0x40810000\" and not winlog.event_data.ServiceName: krbtgt*) or (event.code: \"4624\" and winlog.event_data.LogonType: \"3\" and winlog.event_data.AuthenticationPackageName: \"Kerberos\" and winlog.event_data.KeyLength: \"0\")",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1558",
+          "name": "Steal or Forge Kerberos Tickets",
+          "subtechnique": [{ "id": "T1558.002", "name": "Silver Ticket" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1558/002/",
+    "https://adsecurity.org/?p=2011"
+  ],
+  "tags": ["Credential Access", "Kerberos", "Silver Ticket", "T1558.002"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-system.security*"]
+}

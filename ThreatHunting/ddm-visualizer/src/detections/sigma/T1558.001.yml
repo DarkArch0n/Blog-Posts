@@ -1,0 +1,38 @@
+title: Golden Ticket - Suspicious TGS Request Without Prior TGT Issuance
+id: 8fed5e9c-6e91-4cb0-b98a-06d41c2b5b22
+status: experimental
+description: |
+  Detects potential Golden Ticket usage by identifying Kerberos TGS requests (4769)
+  with anomalous encryption types or TGT requests (4768) where the ticket encryption
+  uses RC4, or service ticket requests from accounts with suspicious SID history.
+  Golden Tickets are forged TGTs created offline with the KRBTGT hash.
+references:
+  - https://attack.mitre.org/techniques/T1558/001/
+  - https://adsecurity.org/?p=1640
+  - https://www.slideshare.net/gentilkiwi/abusing-microsoft-kerberos
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1558.001
+logsource:
+  product: windows
+  service: security
+detection:
+  selection_tgs_rc4:
+    EventID: 4769
+    TicketEncryptionType: '0x17'
+  selection_tgt_anomalous:
+    EventID: 4768
+    TicketEncryptionType: '0x17'
+    Status: '0x0'
+  filter_machine_accounts:
+    TargetUserName|endswith: '$'
+  filter_expected_rc4:
+    ServiceName|startswith:
+      - 'krbtgt'
+  condition: (selection_tgs_rc4 and not filter_machine_accounts and not filter_expected_rc4) or selection_tgt_anomalous
+falsepositives:
+  - Legacy systems that still require RC4 encryption
+  - Some third-party applications using RC4 Kerberos
+level: high

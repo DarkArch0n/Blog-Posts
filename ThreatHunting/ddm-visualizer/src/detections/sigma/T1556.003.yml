@@ -1,0 +1,40 @@
+title: Pluggable Authentication Module Modification - PAM Backdoor
+id: a3b4c5d6-e7f8-4a9b-0c1d-2e3f4a5b6c7e
+status: experimental
+description: |
+  Detects PAM (Pluggable Authentication Module) modifications for credential interception
+  or authentication bypass. Monitors for PAM configuration changes, new PAM modules,
+  and modifications to existing PAM shared objects on Linux.
+references:
+  - https://attack.mitre.org/techniques/T1556/003/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.persistence
+  - attack.t1556.003
+logsource:
+  product: linux
+  category: file_change
+detection:
+  selection_pam_config:
+    TargetFilename|startswith:
+      - '/etc/pam.d/'
+      - '/etc/pam.conf'
+  selection_pam_modules:
+    TargetFilename|startswith:
+      - '/lib/security/'
+      - '/lib64/security/'
+      - '/usr/lib/security/'
+      - '/usr/lib64/security/'
+    TargetFilename|endswith: '.so'
+  selection_pam_compile:
+    CommandLine|contains|all:
+      - 'gcc'
+      - 'pam'
+      - '.so'
+  condition: selection_pam_config or selection_pam_modules or selection_pam_compile
+falsepositives:
+  - System updates modifying PAM configuration
+  - Legitimate PAM module installation
+level: critical

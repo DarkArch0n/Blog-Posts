@@ -1,0 +1,35 @@
+title: Credential Stuffing - Distributed Failed Logon Attempts With Known Breach Patterns
+id: e7f8a9b0-c1d2-4e3f-4a5b-6c7d8e9f0a1b
+status: experimental
+description: |
+  Detects credential stuffing by identifying distributed failed logon attempts from
+  multiple sources against multiple accounts. Covers OAuth/OIDC authentication failures,
+  web application brute force, and federated identity provider login anomalies.
+references:
+  - https://attack.mitre.org/techniques/T1110/004/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1110.004
+logsource:
+  product: windows
+  service: security
+detection:
+  selection_failed_logon:
+    EventID: 4625
+    LogonType:
+      - 10
+      - 3
+      - 8
+    Status:
+      - '0xC000006D'
+      - '0xC000006A'
+  selection_multiple_sources:
+    EventID: 4625
+  condition: selection_failed_logon | count() by TargetUserName > 5
+  timeframe: 1h
+falsepositives:
+  - Legitimate failed logon from multiple locations (VPN, travel)
+  - Automated scanning tools
+level: medium

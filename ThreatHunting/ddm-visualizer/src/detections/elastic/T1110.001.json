@@ -1,0 +1,31 @@
+{
+  "name": "Password Guessing - Multiple Failed Logons Against Single Account",
+  "description": "Detects password guessing by identifying excessive failed logon attempts (4625) against a single account from a single source. Covers RDP, SMB, WinRM, and SSH brute force.",
+  "risk_score": 50,
+  "severity": "medium",
+  "type": "threshold",
+  "language": "kuery",
+  "query": "event.code: \"4625\" and winlog.event_data.Status: (\"0xC000006D\" or \"0xC000006A\") and not winlog.event_data.TargetUserName: (SYSTEM or \"LOCAL SERVICE\" or \"NETWORK SERVICE\")",
+  "threshold": {
+    "field": ["winlog.event_data.TargetUserName", "source.ip"],
+    "value": 10
+  },
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1110",
+          "name": "Brute Force",
+          "subtechnique": [{ "id": "T1110.001", "name": "Password Guessing" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1110/001/"
+  ],
+  "tags": ["Credential Access", "Brute Force", "Password Guessing", "T1110.001"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-system.security*"]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Password Manager Extraction - KeePass, 1Password Database Access",
+  "description": "Detects password manager credential extraction by monitoring for non-authorized access to .kdbx, 1Password vaults, and password manager cache files. Covers KeeThief, KeeFarce, keepass2john tool usage.",
+  "risk_score": 75,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "any where ((file.extension : (\"kdbx\", \"kdb\") and not process.name : \"KeePass.exe\") or process.args : (\"*KeeThief*\", \"*KeeFarce*\", \"*keepass2john*\", \"*KeePassHax*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1555",
+          "name": "Credentials from Password Stores",
+          "subtechnique": [{ "id": "T1555.005", "name": "Password Managers" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1555/005/",
+    "https://github.com/GhostPack/KeeThief"
+  ],
+  "tags": ["Credential Access", "Password Manager", "KeePass", "T1555.005"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.file-*"]
+}

@@ -1,0 +1,38 @@
+title: Credential API Hooking - API Injection for Authentication Interception
+id: d0e1f2a3-b4c5-4d6e-7f8a-9b0c1d2e3f4a
+status: experimental
+description: |
+  Detects credential API hooking by monitoring for DLL injection into authentication
+  processes (lsass.exe, winlogon.exe) and API hooking frameworks targeting credential
+  capture functions (LsaLogonUser, CredUIPromptForCredentials).
+references:
+  - https://attack.mitre.org/techniques/T1056/004/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1056.004
+logsource:
+  product: windows
+  category: image_load
+detection:
+  selection_unsigned_in_lsass:
+    Image|endswith: '\lsass.exe'
+    ImageLoaded|endswith: '.dll'
+    Signed: 'false'
+  selection_hook_tools:
+    CommandLine|contains:
+      - 'EasyHook'
+      - 'Detours'
+      - 'InjectDLL'
+      - 'SetWindowsHookEx'
+  selection_auth_hook:
+    CommandLine|contains:
+      - 'LsaLogonUser'
+      - 'SspiLogon'
+      - 'CredUnPackAuthenticationBuffer'
+  condition: selection_unsigned_in_lsass or selection_hook_tools or selection_auth_hook
+falsepositives:
+  - Security products that hook authentication APIs
+  - Legitimate authentication DLLs
+level: critical

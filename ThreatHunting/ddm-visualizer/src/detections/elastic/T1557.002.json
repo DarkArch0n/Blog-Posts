@@ -1,0 +1,27 @@
+{
+  "name": "ARP Cache Poisoning - ARP Spoofing Tool Detection",
+  "description": "Detects ARP cache poisoning and ARP spoofing tools including arpspoof, ettercap, bettercap, and IP forwarding enablement for MitM positioning.",
+  "risk_score": 80,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and (process.name : (\"arpspoof\", \"ettercap\", \"bettercap\") or process.args : (\"arp.spoof\", \"net.sniff\", \"arpspoof\") or (process.args : \"*ip_forward*\" and process.args : \"1\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1557",
+          "name": "Adversary-in-the-Middle",
+          "subtechnique": [{ "id": "T1557.002", "name": "ARP Cache Poisoning" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1557/002/"
+  ],
+  "tags": ["Credential Access", "ARP Spoofing", "MitM", "T1557.002"],
+  "index": ["logs-endpoint.events.process-*", "auditbeat-*"]
+}

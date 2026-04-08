@@ -1,0 +1,27 @@
+{
+  "name": "Web Cookie Forging - Stolen Signing Key Token Forgery",
+  "description": "Detects web cookie forging via AD FS token-signing certificate theft, Golden SAML, ASP.NET machine key extraction, and JWT forgery. Covers AADInternals, DKM key access, and jwt_tool.",
+  "risk_score": 90,
+  "severity": "critical",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and (process.args : (\"*AADInternals*\", \"*New-AADIntSAMLToken*\", \"*Export-AADIntADFSSigningCertificate*\", \"*Open-AADIntOffice365*\") or process.args : (\"*DKM*\", \"*ADFSProperties*\") or process.args : (\"*machineKey*\", \"*validationKey*\", \"*decryptionKey*\") or process.args : (\"*jwt_tool*\", \"*jwt-cracker*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1606",
+          "name": "Forge Web Credentials",
+          "subtechnique": [{ "id": "T1606.001", "name": "Web Cookies" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1606/001/"
+  ],
+  "tags": ["Credential Access", "Golden SAML", "Web Cookie", "T1606.001"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*"]
+}

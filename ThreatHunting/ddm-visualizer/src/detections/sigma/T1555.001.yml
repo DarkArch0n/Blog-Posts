@@ -1,0 +1,39 @@
+title: Keychain Access - macOS Credential Extraction via security Command
+id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+status: experimental
+description: |
+  Detects macOS Keychain credential extraction using the security command-line utility.
+  Covers security find-generic-password, security find-internet-password, security dump-keychain,
+  and chainbreaker tool usage.
+references:
+  - https://attack.mitre.org/techniques/T1555/001/
+  - https://www.unix.com/man-page/osx/1/security/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1555.001
+logsource:
+  product: macos
+  category: process_creation
+detection:
+  selection_security_cmd:
+    Image|endswith: '/security'
+    CommandLine|contains:
+      - 'find-generic-password'
+      - 'find-internet-password'
+      - 'dump-keychain'
+      - 'unlock-keychain'
+      - 'export'
+  selection_chainbreaker:
+    CommandLine|contains: 'chainbreaker'
+  selection_keychain_file:
+    CommandLine|contains:
+      - 'login.keychain'
+      - 'System.keychain'
+      - '.keychain-db'
+  condition: selection_security_cmd or selection_chainbreaker or selection_keychain_file
+falsepositives:
+  - Legitimate application keychain access
+  - System administration scripts
+level: high

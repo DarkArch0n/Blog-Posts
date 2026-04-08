@@ -1,0 +1,45 @@
+title: Hybrid Identity - Azure AD Connect Credential Extraction
+id: e7f8a9b0-c1d2-4e3f-4a5b-6c7d8e9f0a12
+status: experimental
+description: |
+  Detects Azure AD Connect credential extraction and configuration abuse. Monitors for
+  AADInternals usage, MSOL account password extraction, PTA agent manipulation, and
+  pass-through authentication backdoors.
+references:
+  - https://attack.mitre.org/techniques/T1556/007/
+  - https://aadinternals.com/
+  - https://dirkjanm.io/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.persistence
+  - attack.t1556.007
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_aadinternals:
+    CommandLine|contains:
+      - 'AADInternals'
+      - 'Get-AADIntSyncCredentials'
+      - 'Install-AADIntPTASpy'
+      - 'Set-AADIntPassThroughAuthentication'
+      - 'Export-AADIntADFSSigningCertificate'
+  selection_adconnect_db:
+    CommandLine|contains:
+      - 'ADSync'
+      - 'mms_server_configuration'
+      - 'mms_management_agent'
+    Image|endswith:
+      - '\sqlcmd.exe'
+      - '\sqlservr.exe'
+  selection_dpapi_msol:
+    CommandLine|contains:
+      - 'MSOL_'
+      - 'Azure AD Connect'
+  condition: selection_aadinternals or selection_adconnect_db or selection_dpapi_msol
+falsepositives:
+  - Legitimate Azure AD Connect operations
+  - Authorized sync troubleshooting
+level: critical

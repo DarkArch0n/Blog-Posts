@@ -1,0 +1,39 @@
+title: ARP Cache Poisoning - Gratuitous ARP and ARP Spoofing Detection
+id: f2d3e4a5-b6c7-4d8e-9f01-1b2c3d4e5f6a
+status: experimental
+description: |
+  Detects ARP cache poisoning tools and techniques. Monitors for execution of arpspoof,
+  ettercap, bettercap, and Cain & Abel. Also detects ARP table changes indicative of
+  man-in-the-middle positioning.
+references:
+  - https://attack.mitre.org/techniques/T1557/002/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1557.002
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection_arp_tools:
+    Image|endswith:
+      - '/arpspoof'
+      - '/ettercap'
+      - '/bettercap'
+    CommandLine|contains:
+      - 'arpspoof'
+      - 'ettercap'
+      - 'bettercap'
+      - 'arp.spoof'
+      - 'net.sniff'
+  selection_ip_forward:
+    CommandLine|contains|all:
+      - 'echo'
+      - 'ip_forward'
+      - '1'
+  condition: selection_arp_tools or selection_ip_forward
+falsepositives:
+  - Authorized network testing
+  - Network monitoring tools
+level: high

@@ -1,0 +1,28 @@
+{
+  "name": "Web Portal Credential Capture - Cloned Login Page Detection",
+  "description": "Detects web portal credential capture via credential harvesting frameworks: EvilGinx2, GoPhish, SET, Modlishka, and King-Phisher. Monitors for tool execution on endpoints.",
+  "risk_score": 80,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and (process.name : (\"evilginx*\", \"gophish*\", \"modlishka*\") or process.args : (\"*evilginx*\", \"*gophish*\", \"*setoolkit*\", \"*credential_harvester*\", \"*modlishka*\", \"*king-phisher*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1056",
+          "name": "Input Capture",
+          "subtechnique": [{ "id": "T1056.003", "name": "Web Portal Capture" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1056/003/",
+    "https://github.com/kgretzky/evilginx2"
+  ],
+  "tags": ["Credential Access", "Web Portal Capture", "Phishing", "T1056.003"],
+  "index": ["winlogbeat-*", "logs-endpoint.events.process-*", "auditbeat-*"]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "DHCP Spoofing - Rogue DHCP Server Detection",
+  "description": "Detects DHCP spoofing and rogue DHCP server activity by monitoring for unauthorized DHCP server tools and MitM DHCP spoofing modules in bettercap/ettercap.",
+  "risk_score": 70,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and (process.args : (\"dhcp.spoof\", \"dhcp6.spoof\", \"fake_dhcp\") or (process.name : (\"bettercap\", \"ettercap\") and process.args : \"*dhcp*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1557",
+          "name": "Adversary-in-the-Middle",
+          "subtechnique": [{ "id": "T1557.003", "name": "DHCP Spoofing" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1557/003/"
+  ],
+  "tags": ["Credential Access", "DHCP Spoofing", "MitM", "T1557.003"],
+  "index": ["logs-endpoint.events.process-*", "auditbeat-*"]
+}

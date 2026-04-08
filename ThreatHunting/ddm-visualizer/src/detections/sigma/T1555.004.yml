@@ -1,0 +1,42 @@
+title: Windows Credential Manager Access via vaultcmd or cmdkey
+id: d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a
+status: experimental
+description: |
+  Detects Windows Credential Manager access via vaultcmd.exe, cmdkey.exe, and
+  DPAPI-based credential extraction tools. Covers vaultcmd /listcreds,
+  cmdkey /list, SharpDPAPI, Mimikatz vault::cred, and direct Vault API access.
+references:
+  - https://attack.mitre.org/techniques/T1555/004/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1555.004
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_vaultcmd:
+    Image|endswith: '\vaultcmd.exe'
+    CommandLine|contains:
+      - '/listcreds'
+      - '/list'
+  selection_cmdkey:
+    Image|endswith: '\cmdkey.exe'
+    CommandLine|contains: '/list'
+  selection_dpapi_tools:
+    CommandLine|contains:
+      - 'SharpDPAPI'
+      - 'vault::cred'
+      - 'dpapi::cred'
+      - 'Seatbelt'
+  selection_credential_files:
+    CommandLine|contains:
+      - '\Microsoft\Credentials\'
+      - '\Microsoft\Vault\'
+      - '\Microsoft\Protect\'
+  condition: selection_vaultcmd or selection_cmdkey or selection_dpapi_tools or selection_credential_files
+falsepositives:
+  - Administrators checking stored credentials
+  - Automated credential management scripts
+level: medium

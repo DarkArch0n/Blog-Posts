@@ -1,0 +1,28 @@
+{
+  "name": "AS-REP Roasting - TGT Request Without Pre-Authentication",
+  "description": "Detects AS-REP Roasting by identifying AS-REQ TGT requests (4768) with RC4 encryption and no pre-authentication. Covers Rubeus asreproast, Impacket GetNPUsers, and manual approaches.",
+  "risk_score": 75,
+  "severity": "high",
+  "type": "query",
+  "language": "kuery",
+  "query": "(event.code: \"4768\" and winlog.event_data.TicketEncryptionType: \"0x17\" and winlog.event_data.PreAuthType: \"0\" and winlog.event_data.Status: \"0x0\" and not winlog.event_data.TargetUserName: *$) or (event.code: \"4768\" and winlog.event_data.Status: \"0x6\")",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1558",
+          "name": "Steal or Forge Kerberos Tickets",
+          "subtechnique": [{ "id": "T1558.004", "name": "AS-REP Roasting" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1558/004/",
+    "https://harmj0y.medium.com/roasting-as-reps-e6179a65216b"
+  ],
+  "tags": ["Credential Access", "Kerberos", "AS-REP Roasting", "T1558.004"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-system.security*"]
+}

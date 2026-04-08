@@ -1,0 +1,27 @@
+{
+  "name": "Conditional Access Policy Modification - Azure AD Policy Weakening",
+  "description": "Detects modifications to Azure AD Conditional Access policies including policy disabling, exclusion additions, MFA requirement removal, and trusted location changes that weaken authentication.",
+  "risk_score": 75,
+  "severity": "high",
+  "type": "query",
+  "language": "kuery",
+  "query": "event.dataset: \"azure.auditlogs\" and event.action: (\"Update conditional access policy\" or \"Delete conditional access policy\" or \"Update named location\" or \"Add named location\")",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1556",
+          "name": "Modify Authentication Process",
+          "subtechnique": [{ "id": "T1556.009", "name": "Conditional Access Policies" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1556/009/"
+  ],
+  "tags": ["Credential Access", "Conditional Access", "Azure AD", "T1556.009"],
+  "index": ["filebeat-*", "logs-azure.auditlogs-*"]
+}

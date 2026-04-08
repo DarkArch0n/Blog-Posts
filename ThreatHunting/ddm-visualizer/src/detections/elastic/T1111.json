@@ -1,0 +1,21 @@
+{
+  "name": "Multi-Factor Authentication Interception - MFA Token Theft",
+  "description": "Detects MFA interception via smart card API hooking, real-time phishing proxies (EvilGinx2, Modlishka, Muraena), and SS7 interception tools for OTP capture.",
+  "risk_score": 80,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and (process.args : (\"*SCardTransmit*\", \"*SCardConnect*\", \"*winscard*\") or process.args : (\"*evilginx*\", \"*modlishka*\", \"*muraena*\") or process.args : (\"*ss7*\", \"*SigPloit*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [{ "id": "T1111", "name": "Multi-Factor Authentication Interception" }]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1111/"
+  ],
+  "tags": ["Credential Access", "MFA Interception", "Smart Card", "T1111"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*"]
+}

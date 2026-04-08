@@ -1,0 +1,48 @@
+title: LSASS Memory Access - Credential Dumping via Process Access
+id: c3a4e6b8-9f50-4db0-a137-4c8e2fba7d96
+status: experimental
+description: |
+  Detects credential dumping from LSASS memory by monitoring for suspicious process access
+  to lsass.exe. Covers Mimikatz sekurlsa::logonpasswords, procdump, comsvcs.dll MiniDump,
+  ProcDump, Task Manager dump, nanodump, and direct NtReadVirtualMemory access.
+references:
+  - https://attack.mitre.org/techniques/T1003/001/
+  - https://github.com/gentilkiwi/mimikatz
+  - https://www.microsoft.com/en-us/security/blog/2022/10/05/detecting-and-preventing-lsass-credential-dumping-attacks/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1003.001
+logsource:
+  product: windows
+  category: process_access
+detection:
+  selection_lsass_access:
+    TargetImage|endswith: '\lsass.exe'
+    GrantedAccess|contains:
+      - '0x1010'
+      - '0x1038'
+      - '0x1fffff'
+      - '0x1410'
+      - '0x10'
+      - '0x40'
+  filter_legitimate:
+    SourceImage|endswith:
+      - '\wmiprvse.exe'
+      - '\taskmgr.exe'
+      - '\MsMpEng.exe'
+      - '\csrss.exe'
+      - '\lsass.exe'
+      - '\svchost.exe'
+      - '\msiexec.exe'
+    SourceImage|startswith:
+      - 'C:\Windows\System32\'
+      - 'C:\Windows\SysWOW64\'
+      - 'C:\Program Files\Windows Defender\'
+  condition: selection_lsass_access and not filter_legitimate
+falsepositives:
+  - EDR/AV products accessing LSASS
+  - Windows Defender processes  
+  - Legitimate diagnostics tools
+level: critical

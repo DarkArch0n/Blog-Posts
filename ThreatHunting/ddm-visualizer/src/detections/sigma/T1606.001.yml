@@ -1,0 +1,45 @@
+title: Web Cookie Forging - Stolen Signing Key Token Forgery
+id: d8e9f0a1-b2c3-4d4e-5f6a-7b8c9d0e1f23
+status: experimental
+description: |
+  Detects web cookie forging via AD FS token-signing certificate theft, ASP.NET machine
+  key extraction, JWT forgery, and Golden SAML attacks. Monitors for AD FS DKM key access,
+  AADInternals token operations, and machine key reads from web.config.
+references:
+  - https://attack.mitre.org/techniques/T1606/001/
+  - https://www.cyberark.com/resources/threat-research-blog/golden-saml-newly-discovered-attack-technique-forges-authentication-to-cloud-apps
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1606.001
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_golden_saml:
+    CommandLine|contains:
+      - 'AADInternals'
+      - 'New-AADIntSAMLToken'
+      - 'Open-AADIntOffice365'
+      - 'Export-AADIntADFSSigningCertificate'
+  selection_adfs_dkm:
+    CommandLine|contains:
+      - 'DKM'
+      - 'CryptoPolicy'
+      - 'ADFSProperties'
+  selection_machinekey:
+    CommandLine|contains:
+      - 'machineKey'
+      - 'validationKey'
+      - 'decryptionKey'
+  selection_jwt_forge:
+    CommandLine|contains:
+      - 'jwt_tool'
+      - 'jwt-cracker'
+      - 'pyjwt'
+  condition: selection_golden_saml or selection_adfs_dkm or selection_machinekey or selection_jwt_forge
+falsepositives:
+  - AD FS administration
+  - Web application deployment
+level: critical

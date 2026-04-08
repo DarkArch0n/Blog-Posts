@@ -1,0 +1,35 @@
+title: Password Guessing - Multiple Failed Logon Attempts Against Single Account
+id: b4c5d6e7-f8a9-4b0c-1d2e-3f4a5b6c7d8e
+status: experimental
+description: |
+  Detects password guessing by identifying multiple failed logon attempts (4625) against
+  a single account from a single source within a short time window. Covers RDP, SMB,
+  WinRM, and SSH brute force attempts.
+references:
+  - https://attack.mitre.org/techniques/T1110/001/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1110.001
+logsource:
+  product: windows
+  service: security
+detection:
+  selection_failed_logon:
+    EventID: 4625
+    Status:
+      - '0xC000006D'
+      - '0xC000006A'
+  filter_service_accounts:
+    TargetUserName|startswith:
+      - 'SYSTEM'
+      - 'LOCAL SERVICE'
+      - 'NETWORK SERVICE'
+  condition: selection_failed_logon and not filter_service_accounts | count(TargetUserName) by IpAddress > 10
+  timeframe: 5m
+falsepositives:
+  - Users who forgot their password
+  - Misconfigured service accounts
+  - Password rotation scripts
+level: medium

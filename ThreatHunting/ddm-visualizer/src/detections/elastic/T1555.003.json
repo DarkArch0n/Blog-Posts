@@ -1,0 +1,29 @@
+{
+  "name": "Browser Credential Extraction - Password Store Access by Non-Browser Process",
+  "description": "Detects browser credential extraction by non-browser processes accessing Chrome/Edge Login Data, Firefox logins.json, or cookie databases. Covers SharpChromium, HackBrowserData, LaZagne, and manual SQLite access.",
+  "risk_score": 80,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "file where event.type == \"access\" and (file.path : (\"*Google\\\\Chrome\\\\User Data\\\\Default\\\\Login Data\", \"*Edge\\\\User Data\\\\Default\\\\Login Data\", \"*Firefox\\\\Profiles\\\\*logins.json\", \"*Firefox\\\\Profiles\\\\*key4.db\")) and not process.name : (\"chrome.exe\", \"msedge.exe\", \"firefox.exe\", \"brave.exe\")",
+  "note": "Alternative KQL: process.command_line: (*SharpChromium* or *HackBrowserData* or *LaZagne* or *BrowserGather* or *WebBrowserPassView*)",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1555",
+          "name": "Credentials from Password Stores",
+          "subtechnique": [{ "id": "T1555.003", "name": "Credentials from Web Browsers" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1555/003/",
+    "https://github.com/AlessandroZ/LaZagne"
+  ],
+  "tags": ["Credential Access", "Browser", "Chrome", "Firefox", "T1555.003"],
+  "index": ["winlogbeat-*", "logs-windows.sysmon_operational-*", "logs-endpoint.events.file-*"]
+}

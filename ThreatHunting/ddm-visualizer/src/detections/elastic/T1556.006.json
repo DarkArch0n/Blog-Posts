@@ -1,0 +1,27 @@
+{
+  "name": "MFA Modification - Authentication Method Changes in Azure AD",
+  "description": "Detects MFA configuration modifications including disabling MFA, registering new authentication methods, and modifying strong authentication settings in Azure AD.",
+  "risk_score": 75,
+  "severity": "high",
+  "type": "query",
+  "language": "kuery",
+  "query": "event.dataset: \"azure.auditlogs\" and event.action: (\"Disable Strong Authentication\" or \"User registered security info\" or \"Admin registered security info\" or \"Update StsRefreshTokenValidFrom\" or \"User registered all required security info\")",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1556",
+          "name": "Modify Authentication Process",
+          "subtechnique": [{ "id": "T1556.006", "name": "Multi-Factor Authentication" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1556/006/"
+  ],
+  "tags": ["Credential Access", "MFA", "Azure AD", "T1556.006"],
+  "index": ["filebeat-*", "logs-azure.auditlogs-*"]
+}

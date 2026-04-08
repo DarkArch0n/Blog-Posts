@@ -1,0 +1,40 @@
+title: Cloud Instance Metadata API Access - IMDS Credential Theft
+id: f4a5b6c7-d8e9-4f0a-1b2c-3d4e5f6a7b89
+status: experimental
+description: |
+  Detects access to cloud instance metadata APIs (169.254.169.254) for credential theft.
+  Monitors for curl/wget/Invoke-WebRequest to IMDS endpoints on AWS, Azure, and GCP
+  for temporary credential extraction.
+references:
+  - https://attack.mitre.org/techniques/T1552/005/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1552.005
+logsource:
+  category: process_creation
+detection:
+  selection_imds_curl:
+    CommandLine|contains:
+      - '169.254.169.254'
+      - 'metadata.google.internal'
+      - 'metadata.azure'
+  selection_imds_powershell:
+    Image|endswith:
+      - '\powershell.exe'
+      - '\pwsh.exe'
+    CommandLine|contains:
+      - 'Invoke-WebRequest'
+      - 'Invoke-RestMethod'
+      - 'iwr'
+    CommandLine|contains: '169.254.169.254'
+  selection_aws_iam:
+    CommandLine|contains:
+      - '/iam/security-credentials'
+      - '/latest/meta-data'
+  condition: selection_imds_curl or selection_imds_powershell or selection_aws_iam
+falsepositives:
+  - Legitimate cloud applications querying metadata for configuration
+  - Cloud init scripts
+level: high

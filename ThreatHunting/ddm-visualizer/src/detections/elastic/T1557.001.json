@@ -1,0 +1,28 @@
+{
+  "name": "LLMNR/NBT-NS Poisoning and SMB Relay Detection",
+  "description": "Detects LLMNR/NBT-NS poisoning and NTLM relay attacks by monitoring for Responder, Inveigh, ntlmrelayx, mitm6, and suspicious LLMNR/NBT-NS network activity from non-system processes.",
+  "risk_score": 85,
+  "severity": "critical",
+  "type": "query",
+  "language": "kuery",
+  "query": "(process.command_line: (*Responder* or *Inveigh* or *ntlmrelayx* or *mitm6* or *PetitPotam*)) or (event.code: \"3\" and destination.port: (5355 or 137) and not process.executable: (*svchost.exe or *dns.exe))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1557",
+          "name": "Adversary-in-the-Middle",
+          "subtechnique": [{ "id": "T1557.001", "name": "LLMNR/NBT-NS Poisoning and SMB Relay" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1557/001/",
+    "https://github.com/SpiderLabs/Responder"
+  ],
+  "tags": ["Credential Access", "LLMNR", "NBT-NS", "Responder", "T1557.001"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*", "logs-endpoint.events.network-*"]
+}

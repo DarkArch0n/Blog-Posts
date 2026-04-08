@@ -1,0 +1,53 @@
+title: Credentials In Files - Suspicious Credential File Search
+id: b0c1d2e3-f4a5-4b6c-7d8e-9f0a1b2c3d45
+status: experimental
+description: |
+  Detects credential searching in files using findstr, grep, Select-String, or automated
+  tools like Snaffler. Monitors for common credential-related search patterns in
+  configuration files, scripts, and log files.
+references:
+  - https://attack.mitre.org/techniques/T1552/001/
+  - https://github.com/SnaffCon/Snaffler
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1552.001
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_findstr:
+    Image|endswith: '\findstr.exe'
+    CommandLine|contains:
+      - 'password'
+      - 'secret'
+      - 'credential'
+      - 'api_key'
+      - 'connectionstring'
+  selection_powershell_search:
+    Image|endswith:
+      - '\powershell.exe'
+      - '\pwsh.exe'
+    CommandLine|contains:
+      - 'Select-String'
+      - 'Get-Content'
+    CommandLine|contains:
+      - 'password'
+      - 'secret'
+      - 'key'
+  selection_snaffler:
+    Image|endswith:
+      - '\Snaffler.exe'
+      - '\snaffler.exe'
+    CommandLine|contains: 'Snaffler'
+  selection_trufflehog:
+    CommandLine|contains:
+      - 'trufflehog'
+      - 'gitleaks'
+      - 'git-secrets'
+  condition: selection_findstr or selection_powershell_search or selection_snaffler or selection_trufflehog
+falsepositives:
+  - Developers searching their own code
+  - Security scanning tools
+level: medium

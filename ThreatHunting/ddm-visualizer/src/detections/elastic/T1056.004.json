@@ -1,0 +1,28 @@
+{
+  "name": "Credential API Hooking - DLL Injection into Authentication Processes",
+  "description": "Detects credential API hooking by monitoring for unsigned DLL loads in lsass.exe, API hooking frameworks (EasyHook, Detours), and tools targeting LsaLogonUser and authentication buffer functions.",
+  "risk_score": 90,
+  "severity": "critical",
+  "type": "eql",
+  "language": "eql",
+  "query": "library where process.name == \"lsass.exe\" and dll.code_signature.exists == false and not dll.path : (\"C:\\\\Windows\\\\System32\\\\*\", \"C:\\\\Windows\\\\SysWOW64\\\\*\", \"C:\\\\Program Files\\\\*\")",
+  "note": "Alternative KQL for tool detection: process.command_line: (*EasyHook* or *Detours* or *InjectDLL* or *LsaLogonUser* or *SspiLogon*)",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1056",
+          "name": "Input Capture",
+          "subtechnique": [{ "id": "T1056.004", "name": "Credential API Hooking" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1056/004/"
+  ],
+  "tags": ["Credential Access", "API Hooking", "DLL Injection", "T1056.004"],
+  "index": ["winlogbeat-*", "logs-windows.sysmon_operational-*"]
+}

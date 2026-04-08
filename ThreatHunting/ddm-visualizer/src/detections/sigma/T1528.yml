@@ -1,0 +1,36 @@
+title: Steal Application Access Token - OAuth Token Theft and Illicit Consent
+id: d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f89
+status: experimental
+description: |
+  Detects application access token theft via illicit OAuth consent grants, cached CLI
+  token extraction (Azure CLI, gcloud, AWS), browser token extraction, and malicious
+  OAuth app registrations with high-privilege scopes.
+references:
+  - https://attack.mitre.org/techniques/T1528/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1528
+logsource:
+  product: azure
+  service: auditlogs
+detection:
+  selection_consent_grant:
+    operationName|contains:
+      - 'Consent to application'
+      - 'Add app role assignment'
+      - 'Add OAuth2PermissionGrant'
+  selection_dangerous_scopes:
+    operationName|contains: 'Consent'
+    modifiedProperties.newValue|contains:
+      - 'Mail.Read'
+      - 'Mail.ReadWrite'
+      - 'Files.ReadWrite.All'
+      - 'Directory.ReadWrite.All'
+      - 'full_access_as_app'
+  condition: selection_consent_grant or selection_dangerous_scopes
+falsepositives:
+  - Legitimate OAuth app installations
+  - Enterprise application consent flows
+level: high

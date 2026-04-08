@@ -1,0 +1,27 @@
+{
+  "name": "Securityd Memory Access - macOS Keychain Memory Extraction",
+  "description": "Detects attempts to read securityd process memory on macOS for credential extraction. Covers gdb/lldb attach, vmmap enumeration, and memory dump tools targeting the keychain daemon.",
+  "risk_score": 90,
+  "severity": "critical",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and ((process.name : (\"gdb\", \"lldb\") and process.args : \"*securityd*\") or (process.name == \"vmmap\" and process.args : \"*securityd*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1555",
+          "name": "Credentials from Password Stores",
+          "subtechnique": [{ "id": "T1555.002", "name": "Securityd Memory" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1555/002/"
+  ],
+  "tags": ["Credential Access", "macOS", "Securityd", "T1555.002"],
+  "index": ["logs-endpoint.events.process-*"]
+}

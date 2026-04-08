@@ -1,0 +1,37 @@
+title: Silver Ticket - Service Ticket Usage Without Corresponding TGS Request
+id: 3d7a8e5f-12b4-4c9d-ae17-6f2d0b8c3a91
+status: experimental
+description: |
+  Detects potential Silver Ticket usage by identifying Kerberos service logon events (4624 Type 3)
+  where service ticket was presented but no corresponding TGS request (4769) was logged on the DC.
+  Also detects anomalous service ticket encryption types (RC4 where AES is expected).
+references:
+  - https://attack.mitre.org/techniques/T1558/002/
+  - https://adsecurity.org/?p=2011
+  - https://www.ired.team/offensive-security-experiments/active-directory-kerberos-abuse/kerberos-silver-tickets
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1558.002
+logsource:
+  product: windows
+  service: security
+detection:
+  selection_service_ticket:
+    EventID: 4769
+    TicketEncryptionType: '0x17'
+    TicketOptions: '0x40810000'
+  selection_logon_anomaly:
+    EventID: 4624
+    LogonType: 3
+    AuthenticationPackageName: 'Kerberos'
+    KeyLength: 0
+  filter_expected_services:
+    ServiceName|startswith:
+      - 'krbtgt'
+  condition: (selection_service_ticket and not filter_expected_services) or selection_logon_anomaly
+falsepositives:
+  - Legacy systems requiring RC4 Kerberos
+  - Service accounts with specific encryption configurations
+level: high

@@ -1,0 +1,41 @@
+title: NTDS.dit Access - Active Directory Database Credential Extraction
+id: e5c6a8d0-b172-4fd2-c359-6ea04hcc9f18
+status: experimental
+description: |
+  Detects NTDS.dit access for full AD credential extraction via ntdsutil, Volume Shadow Copy,
+  Impacket secretsdump DCSync, or direct file copy. Covers ntdsutil.exe IFM creation,
+  vssadmin shadow copy to access NTDS.dit, and esentutl.exe extraction.
+references:
+  - https://attack.mitre.org/techniques/T1003/003/
+  - https://www.ired.team/offensive-security/credential-access-and-credential-dumping/ntds.dit-enumeration
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1003.003
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_ntdsutil:
+    Image|endswith: '\ntdsutil.exe'
+    CommandLine|contains:
+      - 'ifm'
+      - 'create full'
+      - 'ac i ntds'
+  selection_vss_ntds:
+    CommandLine|contains|all:
+      - 'shadow'
+      - 'ntds'
+  selection_copy_ntds:
+    CommandLine|contains:
+      - 'ntds.dit'
+      - 'NTDS.dit'
+  selection_esentutl_ntds:
+    Image|endswith: '\esentutl.exe'
+    CommandLine|contains: 'ntds'
+  condition: selection_ntdsutil or selection_vss_ntds or selection_copy_ntds or selection_esentutl_ntds
+falsepositives:
+  - Legitimate Active Directory backup procedures
+  - Authorized disaster recovery operations
+level: critical

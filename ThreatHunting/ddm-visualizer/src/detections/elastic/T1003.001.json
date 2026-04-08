@@ -1,0 +1,29 @@
+{
+  "name": "LSASS Memory Access - Credential Dumping via Process Access",
+  "description": "Detects credential dumping from LSASS memory via suspicious process access. Covers Mimikatz, procdump, comsvcs.dll MiniDump, nanodump, and direct API access to LSASS.",
+  "risk_score": 90,
+  "severity": "critical",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.category == \"process\" and event.type == \"access\" and process.name == \"lsass.exe\" and not (process.executable : (\"C:\\\\Windows\\\\System32\\\\*\", \"C:\\\\Windows\\\\SysWOW64\\\\*\", \"C:\\\\Program Files\\\\Windows Defender\\\\*\", \"C:\\\\ProgramData\\\\Microsoft\\\\Windows Defender\\\\*\"))",
+  "note": "Alternative KQL: event.code: \"10\" and winlog.event_data.TargetImage: *lsass.exe and winlog.event_data.GrantedAccess: (\"0x1010\" or \"0x1038\" or \"0x1fffff\" or \"0x1410\") and not winlog.event_data.SourceImage: (C\\:\\\\Windows\\\\System32\\\\* or C\\:\\\\Program?Files\\\\Windows?Defender\\\\*)",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1003",
+          "name": "OS Credential Dumping",
+          "subtechnique": [{ "id": "T1003.001", "name": "LSASS Memory" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1003/001/",
+    "https://github.com/gentilkiwi/mimikatz"
+  ],
+  "tags": ["Credential Access", "LSASS", "Mimikatz", "T1003.001"],
+  "index": ["winlogbeat-*", "logs-windows.sysmon_operational-*"]
+}

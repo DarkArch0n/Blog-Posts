@@ -1,0 +1,28 @@
+{
+  "name": "Kerberoasting - Service Ticket Request With RC4 Encryption",
+  "description": "Detects Kerberoasting by identifying TGS requests (4769) using RC4 encryption for service accounts. Covers Rubeus kerberoast, Impacket GetUserSPNs, Invoke-Kerberoast, and manual setspn/klist approaches.",
+  "risk_score": 75,
+  "severity": "high",
+  "type": "query",
+  "language": "kuery",
+  "query": "event.code: \"4769\" and winlog.event_data.TicketEncryptionType: \"0x17\" and winlog.event_data.Status: \"0x0\" and not winlog.event_data.TargetUserName: *$ and not winlog.event_data.ServiceName: (krbtgt or kadmin* or changepw*)",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1558",
+          "name": "Steal or Forge Kerberos Tickets",
+          "subtechnique": [{ "id": "T1558.003", "name": "Kerberoasting" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1558/003/",
+    "https://github.com/GhostPack/Rubeus"
+  ],
+  "tags": ["Credential Access", "Kerberos", "Kerberoasting", "T1558.003"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-system.security*"]
+}

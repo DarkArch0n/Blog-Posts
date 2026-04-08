@@ -1,0 +1,28 @@
+{
+  "name": "Domain Controller Authentication Modification - Skeleton Key Attack",
+  "description": "Detects Skeleton Key attacks by monitoring for Mimikatz misc::skeleton execution, unsigned DLL injection into lsass.exe on DCs, and LSASS memory patching for authentication bypass.",
+  "risk_score": 95,
+  "severity": "critical",
+  "type": "eql",
+  "language": "eql",
+  "query": "any where (process.args : (\"*misc::skeleton*\", \"*misc::memssp*\") or (event.category == \"library\" and process.name == \"lsass.exe\" and dll.code_signature.exists == false))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1556",
+          "name": "Modify Authentication Process",
+          "subtechnique": [{ "id": "T1556.001", "name": "Domain Controller Authentication" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1556/001/",
+    "https://adsecurity.org/?p=1275"
+  ],
+  "tags": ["Credential Access", "Skeleton Key", "Domain Controller", "T1556.001"],
+  "index": ["winlogbeat-*", "logs-windows.sysmon_operational-*", "logs-endpoint.events.process-*"]
+}

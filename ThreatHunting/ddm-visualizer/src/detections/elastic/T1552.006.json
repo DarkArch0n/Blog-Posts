@@ -1,0 +1,27 @@
+{
+  "name": "Group Policy Preferences - GPP Password Extraction from SYSVOL",
+  "description": "Detects GPP password extraction from SYSVOL via findstr cpassword, Get-GPPPassword, CrackMapExec GPP module, and direct SYSVOL XML file access for credential harvesting.",
+  "risk_score": 80,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and ((process.name == \"findstr.exe\" and process.args : \"*cpassword*\") or process.args : (\"*Get-GPPPassword*\", \"*GPPPassword*\", \"*gpp-decrypt*\", \"*Groups.xml*\") or (process.args : \"*SYSVOL*\" and process.args : \"*.xml*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1552",
+          "name": "Unsecured Credentials",
+          "subtechnique": [{ "id": "T1552.006", "name": "Group Policy Preferences" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1552/006/"
+  ],
+  "tags": ["Credential Access", "GPP", "SYSVOL", "MS14-025", "T1552.006"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*"]
+}

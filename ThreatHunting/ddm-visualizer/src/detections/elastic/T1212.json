@@ -1,0 +1,21 @@
+{
+  "name": "Exploitation for Credential Access - Known CVE Exploit Execution",
+  "description": "Detects exploitation of known credential access CVEs: ZeroLogon, PrintNightmare, noPac/sAMAccountName, and Certifried. Covers exploit tools and post-exploitation indicators (Event 4742 DC password reset).",
+  "risk_score": 95,
+  "severity": "critical",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and (process.args : (\"*zerologon*\", \"*CVE-2020-1472*\", \"*SharpZeroLogon*\", \"*PrintNightmare*\", \"*CVE-2021-34527*\", \"*noPac*\", \"*sam-the-admin*\", \"*CVE-2021-42278*\", \"*Certipy*\", \"*certifried*\", \"*CVE-2022-26923*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [{ "id": "T1212", "name": "Exploitation for Credential Access" }]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1212/"
+  ],
+  "tags": ["Credential Access", "CVE Exploitation", "ZeroLogon", "PrintNightmare", "T1212"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*"]
+}

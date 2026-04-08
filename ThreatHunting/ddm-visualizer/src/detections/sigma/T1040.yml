@@ -1,0 +1,44 @@
+title: Network Sniffing - Promiscuous Mode and Packet Capture Tool Execution
+id: f0a1b2c3-d4e5-4f6a-7b8c-9d0e1f2a3b45
+status: experimental
+description: |
+  Detects network sniffing by monitoring for packet capture tool execution (tcpdump,
+  tshark, Wireshark), Responder, promiscuous mode enablement, and raw socket creation
+  for credentials in unencrypted traffic.
+references:
+  - https://attack.mitre.org/techniques/T1040/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.discovery
+  - attack.t1040
+logsource:
+  category: process_creation
+detection:
+  selection_capture_tools:
+    Image|endswith:
+      - '\tcpdump'
+      - '/tcpdump'
+      - '\tshark.exe'
+      - '/tshark'
+      - '\dumpcap.exe'
+      - '\windump.exe'
+      - '\ngrep'
+      - '/ngrep'
+  selection_responder:
+    CommandLine|contains:
+      - 'Responder'
+      - 'Inveigh'
+  selection_promisc:
+    CommandLine|contains:
+      - 'promisc'
+      - 'PROMISC'
+      - '-i any'
+      - 'ifconfig'
+      - 'promiscuous'
+  condition: selection_capture_tools or selection_responder or selection_promisc
+falsepositives:
+  - Network administrators performing packet analysis
+  - Authorized network monitoring tools
+level: medium

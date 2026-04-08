@@ -1,0 +1,35 @@
+title: AS-REP Roasting - TGT Request Without Pre-Authentication
+id: b2f3d5a7-8e49-4caf-9026-3b7d1eaf6c85
+status: experimental
+description: |
+  Detects AS-REP Roasting by identifying AS-REQ/AS-REP exchanges (4768) with RC4 encryption
+  and error code 0x0 for accounts with Kerberos pre-authentication disabled (DONT_REQ_PREAUTH).
+  Covers Rubeus asreproast, Impacket GetNPUsers, and manual approaches.
+references:
+  - https://attack.mitre.org/techniques/T1558/004/
+  - https://harmj0y.medium.com/roasting-as-reps-e6179a65216b
+  - https://github.com/GhostPack/Rubeus
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1558.004
+logsource:
+  product: windows
+  service: security
+detection:
+  selection_asrep:
+    EventID: 4768
+    TicketEncryptionType: '0x17'
+    PreAuthType: '0'
+    Status: '0x0'
+  selection_asrep_enum:
+    EventID: 4768
+    Status: '0x6'
+  filter_machine_accounts:
+    TargetUserName|endswith: '$'
+  condition: (selection_asrep and not filter_machine_accounts) or selection_asrep_enum
+falsepositives:
+  - Legitimate accounts with pre-authentication disabled for compatibility
+  - Service accounts configured without pre-auth
+level: high

@@ -1,0 +1,36 @@
+title: GUI Input Capture - Fake Credential Dialog via PowerShell CredentialRequest
+id: b8c9d0e1-f2a3-4b4c-5d6e-7f8a9b0c1d2e
+status: experimental
+description: |
+  Detects fake credential dialog creation using PowerShell Get-Credential,
+  CredentialRequest, or Windows API CredUIPromptForCredentials. Covers phishing
+  credential prompts designed to capture user passwords.
+references:
+  - https://attack.mitre.org/techniques/T1056/002/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1056.002
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_ps_cred_dialog:
+    Image|endswith:
+      - '\powershell.exe'
+      - '\pwsh.exe'
+    CommandLine|contains:
+      - 'Get-Credential'
+      - 'CredentialRequest'
+      - 'PromptForCredential'
+      - 'CredUIPromptForCredentials'
+  selection_cred_prompt_api:
+    CommandLine|contains:
+      - 'credui.dll'
+      - 'CredUIPromptForWindowsCredentials'
+  condition: selection_ps_cred_dialog or selection_cred_prompt_api
+falsepositives:
+  - Legitimate scripts using Get-Credential for authentication
+  - Admin tools prompting for elevated credentials
+level: medium

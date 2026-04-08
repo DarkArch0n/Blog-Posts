@@ -1,0 +1,27 @@
+{
+  "name": "Network Device Authentication Modification - IOS Config Change",
+  "description": "Detects network device authentication modifications including AAA configuration changes, boot image modifications, and authentication bypass configurations on Cisco and similar network devices.",
+  "risk_score": 75,
+  "severity": "high",
+  "type": "query",
+  "language": "kuery",
+  "query": "event.dataset: \"cisco.*\" and message: (*aaa*authentication* or *enable*secret* or *boot*system* or *no*aaa* or *upgrade*rom-monitor*)",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1556",
+          "name": "Modify Authentication Process",
+          "subtechnique": [{ "id": "T1556.004", "name": "Network Device Authentication" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1556/004/"
+  ],
+  "tags": ["Credential Access", "Network Device", "Cisco", "T1556.004"],
+  "index": ["filebeat-*", "logs-cisco.*"]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "Bash History Credential Access - Shell History File Reading",
+  "description": "Detects reading of shell history files for credential harvesting. Monitors for cat/grep/less on .bash_history, .zsh_history, .mysql_history and password-related history searches.",
+  "risk_score": 45,
+  "severity": "medium",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and ((process.name : (\"cat\", \"less\", \"more\", \"grep\", \"head\", \"strings\") and process.args : (\"*.bash_history*\", \"*.zsh_history*\", \"*.mysql_history*\", \"*.psql_history*\", \"*.sh_history*\")) or (process.args : \"*history*\" and process.args : \"*password*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1552",
+          "name": "Unsecured Credentials",
+          "subtechnique": [{ "id": "T1552.003", "name": "Bash History" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1552/003/"
+  ],
+  "tags": ["Credential Access", "Bash History", "Linux", "T1552.003"],
+  "index": ["logs-endpoint.events.process-*", "auditbeat-*"]
+}

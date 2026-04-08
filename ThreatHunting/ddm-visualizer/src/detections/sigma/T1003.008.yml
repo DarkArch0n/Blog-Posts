@@ -1,0 +1,41 @@
+title: Passwd and Shadow File Access on Linux
+id: d0b1f3c5-a6c7-4ec7-b804-1df59mbb4e63
+status: experimental
+description: |
+  Detects access to /etc/passwd and /etc/shadow for credential harvesting.
+  Covers cat/less/head reads, unshadow combinations, and John/Hashcat cracking setup.
+  Also detects /etc/master.passwd on BSD and chpasswd abuse.
+references:
+  - https://attack.mitre.org/techniques/T1003/008/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1003.008
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection_shadow_read:
+    CommandLine|contains:
+      - '/etc/shadow'
+      - '/etc/master.passwd'
+    Image|endswith:
+      - '/cat'
+      - '/less'
+      - '/more'
+      - '/head'
+      - '/tail'
+      - '/cp'
+      - '/base64'
+  selection_unshadow:
+    Image|endswith: '/unshadow'
+  selection_copy_shadow:
+    CommandLine|contains|all:
+      - 'cp'
+      - 'shadow'
+  condition: selection_shadow_read or selection_unshadow or selection_copy_shadow
+falsepositives:
+  - System administration scripts reading passwd for user enumeration
+  - Configuration management tools
+level: high

@@ -1,0 +1,37 @@
+title: Password Spraying - Failed Logons Across Multiple Accounts From Single Source
+id: d6e7f8a9-b0c1-4d2e-3f4a-5b6c7d8e9f0a
+status: experimental
+description: |
+  Detects password spraying by identifying a single source IP generating failed logon
+  attempts (4625) across many distinct accounts in a short time window. Covers spray
+  attacks via SMB, RDP, OWA, ADFS, and Kerberos AS-REQ.
+references:
+  - https://attack.mitre.org/techniques/T1110/003/
+  - https://www.microsoft.com/en-us/security/blog/2020/04/23/protecting-organization-password-spray-attacks/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1110.003
+logsource:
+  product: windows
+  service: security
+detection:
+  selection_failed_logon:
+    EventID:
+      - 4625
+      - 4771
+    Status:
+      - '0xC000006D'
+      - '0xC000006A'
+      - '0x18'
+  filter_service_accounts:
+    TargetUserName|startswith:
+      - 'SYSTEM'
+      - 'HEALTH'
+  condition: selection_failed_logon and not filter_service_accounts | count(TargetUserName) by IpAddress > 20
+  timeframe: 10m
+falsepositives:
+  - Batch logon scripts
+  - Monitoring tools testing connectivity
+level: high

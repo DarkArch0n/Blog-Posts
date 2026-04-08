@@ -1,0 +1,31 @@
+title: Network Provider DLL - Malicious Credential Capture via NPLogonNotify
+id: f8a9b0c1-d2e3-4f4a-5b6c-7d8e9f0a1b23
+status: experimental
+description: |
+  Detects registration of malicious Network Provider DLLs that capture plaintext
+  credentials during user logon via NPLogonNotify. Monitors for registry modifications
+  to the NetworkProvider\Order key and new provider DLL registrations.
+references:
+  - https://attack.mitre.org/techniques/T1556/008/
+  - https://github.com/gtworek/PSBits/tree/master/PasswordStealing/NPPSpy
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.persistence
+  - attack.t1556.008
+logsource:
+  product: windows
+  category: registry_set
+detection:
+  selection_network_provider_order:
+    TargetObject|contains: 'CurrentControlSet\Control\NetworkProvider\Order'
+  selection_provider_registration:
+    TargetObject|contains:
+      - 'CurrentControlSet\Services\'
+      - '\NetworkProvider'
+    TargetObject|endswith: 'ProviderPath'
+  condition: selection_network_provider_order or selection_provider_registration
+falsepositives:
+  - Legitimate network provider installation (VPN clients, etc.)
+level: high

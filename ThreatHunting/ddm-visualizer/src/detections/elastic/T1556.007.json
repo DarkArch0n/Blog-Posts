@@ -1,0 +1,28 @@
+{
+  "name": "Hybrid Identity - Azure AD Connect Credential Extraction",
+  "description": "Detects Azure AD Connect credential extraction via AADInternals, MSOL account password extraction, ADSync database queries, and pass-through authentication backdoor installation.",
+  "risk_score": 90,
+  "severity": "critical",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and (process.args : (\"*AADInternals*\", \"*Get-AADIntSyncCredentials*\", \"*Install-AADIntPTASpy*\", \"*Export-AADIntADFSSigningCertificate*\") or (process.name : (\"sqlcmd.exe\", \"sqlservr.exe\") and process.args : (\"*ADSync*\", \"*mms_server*\")) or process.args : \"*MSOL_*\")",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1556",
+          "name": "Modify Authentication Process",
+          "subtechnique": [{ "id": "T1556.007", "name": "Hybrid Identity" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1556/007/",
+    "https://aadinternals.com/"
+  ],
+  "tags": ["Credential Access", "Azure AD Connect", "Hybrid Identity", "T1556.007"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*"]
+}

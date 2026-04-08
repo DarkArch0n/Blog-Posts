@@ -1,0 +1,27 @@
+{
+  "name": "Container API Credential Access - Kubernetes Secrets and Docker Env",
+  "description": "Detects container credential access via kubectl get secrets, docker inspect, ServiceAccount token reads, etcd direct access, and /proc/*/environ extraction.",
+  "risk_score": 60,
+  "severity": "medium",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and ((process.name == \"kubectl\" and process.args : \"*secret*\") or (process.name == \"docker\" and process.args : \"inspect\") or process.args : (\"*/var/run/secrets/kubernetes.io*\", \"*serviceaccount/token*\", \"*etcdctl*\", \"*/proc/1/environ*\", \"*/proc/self/environ*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1552",
+          "name": "Unsecured Credentials",
+          "subtechnique": [{ "id": "T1552.007", "name": "Container API" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1552/007/"
+  ],
+  "tags": ["Credential Access", "Kubernetes", "Docker", "Container", "T1552.007"],
+  "index": ["logs-endpoint.events.process-*", "auditbeat-*"]
+}

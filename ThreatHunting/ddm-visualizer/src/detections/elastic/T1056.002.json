@@ -1,0 +1,27 @@
+{
+  "name": "GUI Input Capture - Fake Credential Dialog via PowerShell",
+  "description": "Detects fake credential dialog creation using PowerShell Get-Credential, CredentialRequest, PromptForCredential, or Windows CredUI API calls designed to phish user passwords.",
+  "risk_score": 60,
+  "severity": "medium",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and process.name : (\"powershell.exe\", \"pwsh.exe\") and process.args : (\"*Get-Credential*\", \"*CredentialRequest*\", \"*PromptForCredential*\", \"*CredUIPromptForCredentials*\", \"*credui.dll*\")",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1056",
+          "name": "Input Capture",
+          "subtechnique": [{ "id": "T1056.002", "name": "GUI Input Capture" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1056/002/"
+  ],
+  "tags": ["Credential Access", "GUI Input Capture", "Phishing", "T1056.002"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*"]
+}

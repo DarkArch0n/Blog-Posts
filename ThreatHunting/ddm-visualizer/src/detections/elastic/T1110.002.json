@@ -1,0 +1,28 @@
+{
+  "name": "Password Cracking Tools - Hashcat or John the Ripper Execution",
+  "description": "Detects execution of password cracking tools (Hashcat, John the Ripper) on endpoints. Identifies both tool execution and specific hash mode flags for credential cracking.",
+  "risk_score": 75,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and (process.name : (\"hashcat.exe\", \"hashcat64.exe\", \"john.exe\", \"hashcat\", \"john\") or process.args : (\"-m 1000\", \"-m 5600\", \"-m 13100\", \"-m 18200\", \"--format=NT\", \"--format=netntlmv2\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1110",
+          "name": "Brute Force",
+          "subtechnique": [{ "id": "T1110.002", "name": "Password Cracking" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1110/002/",
+    "https://hashcat.net/hashcat/"
+  ],
+  "tags": ["Credential Access", "Brute Force", "Password Cracking", "T1110.002"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*", "auditbeat-*"]
+}

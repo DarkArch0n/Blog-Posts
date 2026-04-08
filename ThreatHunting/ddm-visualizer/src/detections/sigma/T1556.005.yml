@@ -1,0 +1,35 @@
+title: Reversible Encryption Enabled - AllowReversiblePasswordEncryption
+id: c5d6e7f8-a9b0-4c1d-2e3f-4a5b6c7d8e90
+status: experimental
+description: |
+  Detects enabling of reversible password encryption in Active Directory, which stores
+  passwords in a recoverable format. Monitors for GPO changes enabling
+  DOMAIN_PASSWORD_STORE_CLEARTEXT and user attribute modifications.
+references:
+  - https://attack.mitre.org/techniques/T1556/005/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1556.005
+logsource:
+  product: windows
+  service: security
+detection:
+  selection_policy_change:
+    EventID: 4739
+  selection_user_change:
+    EventID: 4738
+  selection_gpo_change:
+    EventID: 5136
+    AttributeLDAPDisplayName: 'ms-DS-AllowReversiblePasswordEncryption'
+  selection_powershell:
+    CommandLine|contains:
+      - 'AllowReversiblePasswordEncryption'
+      - 'STORE_CLEARTEXT'
+      - 'reversible'
+  condition: selection_gpo_change or selection_powershell
+falsepositives:
+  - Legacy application requirements (rare)
+  - CHAP/Digest authentication configurations
+level: high

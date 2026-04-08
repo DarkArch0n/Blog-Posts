@@ -1,0 +1,37 @@
+title: SAML Token Forgery - AD FS Token Signing Certificate Abuse
+id: e9f0a1b2-c3d4-4e5f-6a7b-8c9d0e1f2a34
+status: experimental
+description: |
+  Detects SAML token forgery (Golden SAML) by monitoring for AD FS token-signing
+  certificate extraction, AADInternals SAML operations, and anomalous SAML assertions
+  that don't correspond to AD FS authentication events.
+references:
+  - https://attack.mitre.org/techniques/T1606/002/
+  - https://www.mandiant.com/resources/blog/remediation-and-hardening-strategies-for-microsoft-365-to-defend-against-unc2452
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1606.002
+logsource:
+  product: windows
+  service: security
+detection:
+  selection_adfs_audit:
+    EventID:
+      - 510
+      - 1007
+    Provider_Name: 'AD FS Auditing'
+  selection_cert_export:
+    EventID: 4662
+    ObjectType|contains: 'certificateAuthority'
+  selection_adfs_db:
+    CommandLine|contains:
+      - 'AdfsConfiguration'
+      - 'IdentityServerPolicy'
+      - 'ServiceSettingsData'
+  condition: selection_adfs_audit or selection_cert_export or selection_adfs_db
+falsepositives:
+  - Legitimate AD FS token issuance
+  - AD FS database maintenance
+level: critical

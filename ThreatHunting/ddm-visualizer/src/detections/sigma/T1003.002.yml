@@ -1,0 +1,45 @@
+title: SAM Database Access - Registry Hive Credential Extraction
+id: d4b5f7c9-a061-4ec1-b248-5d9f3gbb8e07
+status: experimental
+description: |
+  Detects SAM database credential extraction via registry save operations (reg save HKLM\SAM),
+  Volume Shadow Copy access to SAM, or secretsdump.py-style remote registry reads.
+  Covers reg.exe, esentutl.exe, and Impacket secretsdump approaches.
+references:
+  - https://attack.mitre.org/techniques/T1003/002/
+  - https://www.ired.team/offensive-security/credential-access-and-credential-dumping/dumping-hashes-from-sam-database
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1003.002
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_reg_save:
+    Image|endswith: '\reg.exe'
+    CommandLine|contains|all:
+      - 'save'
+      - 'hklm'
+    CommandLine|contains:
+      - 'sam'
+      - 'system'
+      - 'security'
+  selection_esentutl:
+    Image|endswith: '\esentutl.exe'
+    CommandLine|contains:
+      - 'sam'
+      - 'ntds'
+  selection_shadow_copy:
+    Image|endswith:
+      - '\vssadmin.exe'
+      - '\wmic.exe'
+    CommandLine|contains:
+      - 'shadowcopy'
+      - 'shadow'
+  condition: selection_reg_save or selection_esentutl or selection_shadow_copy
+falsepositives:
+  - Legitimate system backup operations
+  - Authorized penetration testing
+level: high

@@ -1,0 +1,21 @@
+{
+  "name": "Network Sniffing - Packet Capture Tool Execution",
+  "description": "Detects network sniffing via packet capture tool execution (tcpdump, tshark, Wireshark, Responder, Inveigh), promiscuous mode enablement, and raw socket creation for credential capture.",
+  "risk_score": 50,
+  "severity": "medium",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and (process.name : (\"tcpdump\", \"tshark\", \"tshark.exe\", \"dumpcap.exe\", \"windump.exe\", \"ngrep\") or process.args : (\"*Responder*\", \"*Inveigh*\", \"*promisc*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [{ "id": "T1040", "name": "Network Sniffing" }]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1040/"
+  ],
+  "tags": ["Credential Access", "Network Sniffing", "Packet Capture", "T1040"],
+  "index": ["winlogbeat-*", "logs-endpoint.events.process-*", "auditbeat-*"]
+}

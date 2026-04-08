@@ -1,0 +1,38 @@
+title: Kerberoasting - Suspicious Service Ticket Requests With RC4 Encryption
+id: a1e2c4f6-7d38-4b9e-8f15-2a6c0d9e5b74
+status: experimental
+description: |
+  Detects Kerberoasting activity by identifying TGS requests (4769) for service accounts
+  using RC4 encryption (0x17). Kerberoasting requests service tickets encrypted with the
+  service account's NTLM hash for offline cracking. Covers Rubeus, Impacket GetUserSPNs,
+  Invoke-Kerberoast, and manual setspn+klist approaches.
+references:
+  - https://attack.mitre.org/techniques/T1558/003/
+  - https://www.semperis.com/blog/new-attack-paths-as-requested-ste-kerberoast/
+  - https://github.com/GhostPack/Rubeus
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1558.003
+logsource:
+  product: windows
+  service: security
+detection:
+  selection_tgs:
+    EventID: 4769
+    TicketEncryptionType: '0x17'
+    Status: '0x0'
+  filter_machine_accounts:
+    TargetUserName|endswith: '$'
+  filter_krbtgt:
+    ServiceName: 'krbtgt'
+  filter_local_services:
+    ServiceName|startswith:
+      - 'kadmin'
+      - 'changepw'
+  condition: selection_tgs and not filter_machine_accounts and not filter_krbtgt and not filter_local_services
+falsepositives:
+  - Legacy applications requiring RC4 Kerberos encryption
+  - Service accounts explicitly configured for RC4 only
+level: high

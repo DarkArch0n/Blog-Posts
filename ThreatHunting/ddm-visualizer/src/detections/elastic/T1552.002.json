@@ -1,0 +1,27 @@
+{
+  "name": "Credentials in Registry - Autologon and VNC Password Queries",
+  "description": "Detects registry queries for stored credentials including Autologon passwords, VNC passwords, PuTTY proxy credentials, and Seatbelt automated scanning.",
+  "risk_score": 60,
+  "severity": "medium",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and ((process.name == \"reg.exe\" and process.args : \"query\" and process.args : (\"*Winlogon*\", \"*TightVNC*\", \"*RealVNC*\", \"*WinVNC*\", \"*SimonTatham*\", \"*PuTTY*\")) or process.args : \"*Seatbelt*\")",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1552",
+          "name": "Unsecured Credentials",
+          "subtechnique": [{ "id": "T1552.002", "name": "Credentials in Registry" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1552/002/"
+  ],
+  "tags": ["Credential Access", "Registry", "Autologon", "T1552.002"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*"]
+}

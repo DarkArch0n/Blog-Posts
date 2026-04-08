@@ -1,0 +1,45 @@
+title: Password Manager Extraction - KeePass, 1Password, LastPass Database Access
+id: e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8a9b
+status: experimental
+description: |
+  Detects password manager credential extraction by monitoring for access to password
+  database files (.kdbx, 1password vaults, LastPass cache) by non-authorized processes.
+  Covers KeeThief, KeeFarce, KeePass memory access, and password manager cache theft.
+references:
+  - https://attack.mitre.org/techniques/T1555/005/
+  - https://github.com/GhostPack/KeeThief
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1555.005
+logsource:
+  product: windows
+  category: file_access
+detection:
+  selection_keepass_files:
+    TargetFilename|endswith:
+      - '.kdbx'
+      - '.kdb'
+  selection_1password:
+    TargetFilename|contains:
+      - '1Password'
+      - 'agilebits'
+    TargetFilename|endswith:
+      - '.sqlite'
+      - '.1pif'
+  selection_tools:
+    CommandLine|contains:
+      - 'KeeThief'
+      - 'KeeFarce'
+      - 'keepass2john'
+      - 'KeePassHax'
+  filter_password_managers:
+    Image|endswith:
+      - '\KeePass.exe'
+      - '\1Password.exe'
+  condition: (selection_keepass_files or selection_1password or selection_tools) and not filter_password_managers
+falsepositives:
+  - Password manager backup and sync operations
+  - Legitimate file access by password manager processes
+level: high

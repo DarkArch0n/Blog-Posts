@@ -1,0 +1,41 @@
+title: Group Policy Preferences - GPP Password Extraction from SYSVOL
+id: a5b6c7d8-e9f0-4a1b-2c3d-4e5f6a7b8c90
+status: experimental
+description: |
+  Detects GPP password extraction from SYSVOL by monitoring for findstr searches
+  targeting cpassword in XML files, Get-GPPPassword (PowerSploit), and CrackMapExec
+  GPP module usage.
+references:
+  - https://attack.mitre.org/techniques/T1552/006/
+  - https://learn.microsoft.com/en-us/security-updates/securitybulletins/2014/ms14-025
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1552.006
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_findstr_cpass:
+    Image|endswith: '\findstr.exe'
+    CommandLine|contains: 'cpassword'
+  selection_gpp_password:
+    CommandLine|contains:
+      - 'Get-GPPPassword'
+      - 'GPPPassword'
+      - 'gpp-decrypt'
+      - 'Groups.xml'
+  selection_sysvol_search:
+    CommandLine|contains|all:
+      - 'SYSVOL'
+      - '.xml'
+  selection_crackmapexec:
+    CommandLine|contains:
+      - 'crackmapexec'
+      - 'cme'
+      - '--gpp'
+  condition: selection_findstr_cpass or selection_gpp_password or selection_sysvol_search or selection_crackmapexec
+falsepositives:
+  - GPO administration scripts
+level: high

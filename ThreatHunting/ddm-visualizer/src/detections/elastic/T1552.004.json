@@ -1,0 +1,27 @@
+{
+  "name": "Private Key Theft - SSH and TLS Key File Access",
+  "description": "Detects private key theft by monitoring for SSH key file access, certutil certificate export, OpenSSL key operations, and DPAPI certificate extraction via SharpDPAPI.",
+  "risk_score": 75,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and (process.args : (\"*id_rsa*\", \"*id_ed25519*\", \"*id_ecdsa*\", \"*.ssh/id_*\") or (process.name == \"certutil.exe\" and process.args : (\"-exportPFX\", \"-backup\")) or process.args : (\"*SharpDPAPI*\", \"*.pfx*\", \"*.p12*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1552",
+          "name": "Unsecured Credentials",
+          "subtechnique": [{ "id": "T1552.004", "name": "Private Keys" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1552/004/"
+  ],
+  "tags": ["Credential Access", "Private Keys", "SSH", "TLS", "T1552.004"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*", "auditbeat-*"]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Cloud Instance Metadata API Access - IMDS Credential Theft",
+  "description": "Detects access to cloud instance metadata APIs (169.254.169.254) for temporary credential extraction. Covers curl, wget, PowerShell, and programmatic IMDS access on AWS, Azure, and GCP.",
+  "risk_score": 70,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and process.args : (\"*169.254.169.254*\", \"*metadata.google.internal*\", \"*/iam/security-credentials*\", \"*/latest/meta-data*\")",
+  "note": "For cloud-native detection: AWS CloudTrail event.action: 'GetCallerIdentity' with sourceIPAddress: 169.254.169.254",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1552",
+          "name": "Unsecured Credentials",
+          "subtechnique": [{ "id": "T1552.005", "name": "Cloud Instance Metadata API" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1552/005/"
+  ],
+  "tags": ["Credential Access", "Cloud", "IMDS", "Metadata API", "T1552.005"],
+  "index": ["logs-endpoint.events.process-*", "auditbeat-*", "winlogbeat-*"]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "Keylogging - Input Capture via SetWindowsHookEx or GetAsyncKeyState",
+  "description": "Detects keylogging activity by monitoring for SetWindowsHookEx keyboard hooks, GetAsyncKeyState polling, and known keylogger tools. Covers PowerShell keyloggers, software keyloggers, and credential capture scripts.",
+  "risk_score": 75,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and (process.args : (\"*GetAsyncKeyState*\", \"*SetWindowsHookEx*\", \"*Get-Keystrokes*\", \"*Start-KeyLogger*\", \"*WH_KEYBOARD*\") or (process.name : (\"powershell.exe\", \"pwsh.exe\") and process.args : (\"*user32.dll*\", \"*GetAsyncKeyState*\")))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1056",
+          "name": "Input Capture",
+          "subtechnique": [{ "id": "T1056.001", "name": "Keylogging" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1056/001/"
+  ],
+  "tags": ["Credential Access", "Keylogging", "Input Capture", "T1056.001"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*"]
+}

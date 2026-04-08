@@ -1,0 +1,32 @@
+{
+  "name": "Credential Stuffing - Distributed Failed Logon Attempts",
+  "description": "Detects credential stuffing by identifying distributed failed logon attempts from multiple sources against accounts. Covers web, RDP, and federated authentication brute force with breach database patterns.",
+  "risk_score": 50,
+  "severity": "medium",
+  "type": "threshold",
+  "language": "kuery",
+  "query": "event.code: \"4625\" and winlog.event_data.LogonType: (\"3\" or \"8\" or \"10\") and winlog.event_data.Status: (\"0xC000006D\" or \"0xC000006A\")",
+  "threshold": {
+    "field": ["winlog.event_data.TargetUserName"],
+    "value": 5,
+    "cardinality": [{ "field": "source.ip", "value": 3 }]
+  },
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1110",
+          "name": "Brute Force",
+          "subtechnique": [{ "id": "T1110.004", "name": "Credential Stuffing" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1110/004/"
+  ],
+  "tags": ["Credential Access", "Brute Force", "Credential Stuffing", "T1110.004"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-system.security*"]
+}

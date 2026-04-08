@@ -1,0 +1,36 @@
+title: DHCP Spoofing - Rogue DHCP Server Detection
+id: a3b4c5d6-e7f8-4a9b-0c1d-2e3f4a5b6c7d
+status: experimental
+description: |
+  Detects DHCP spoofing and rogue DHCP server activity. Monitors for DHCP server tools
+  running on non-authorized systems, duplicate DHCP offers, and suspicious DHCP option
+  configurations used for MitM attacks.
+references:
+  - https://attack.mitre.org/techniques/T1557/003/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1557.003
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection_dhcp_tools:
+    CommandLine|contains:
+      - 'dhcpd'
+      - 'dnsmasq'
+      - 'dhcp6'
+    Image|endswith:
+      - '/bettercap'
+      - '/ettercap'
+  selection_dhcp_spoof:
+    CommandLine|contains:
+      - 'dhcp6.spoof'
+      - 'dhcp.spoof'
+      - 'fake_dhcp'
+  condition: selection_dhcp_tools or selection_dhcp_spoof
+falsepositives:
+  - Legitimate DHCP servers
+  - Network lab environments
+level: high

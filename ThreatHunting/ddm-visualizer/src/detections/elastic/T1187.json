@@ -1,0 +1,22 @@
+{
+  "name": "Forced Authentication - NTLM Coercion via PetitPotam, PrinterBug, or UNC Files",
+  "description": "Detects forced NTLM authentication via PetitPotam, PrinterBug/SpoolSample, DFSCoerce, Coercer, ntlmrelayx, and malicious .scf/.url/.lnk files with UNC icon paths.",
+  "risk_score": 90,
+  "severity": "critical",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and (process.args : (\"*PetitPotam*\", \"*SpoolSample*\", \"*PrinterBug*\", \"*DFSCoerce*\", \"*Coercer*\", \"*ShadowCoerce*\", \"*ntlmrelayx*\", \"*MultiRelay*\"))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [{ "id": "T1187", "name": "Forced Authentication" }]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1187/",
+    "https://github.com/topotam/PetitPotam"
+  ],
+  "tags": ["Credential Access", "Forced Authentication", "PetitPotam", "NTLM Relay", "T1187"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*"]
+}

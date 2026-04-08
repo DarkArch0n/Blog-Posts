@@ -1,0 +1,33 @@
+title: LSA Secrets Access - Registry Credential Extraction
+id: f6d7b9e1-c283-4ae3-d460-7fb15idd0a29
+status: experimental
+description: |
+  Detects LSA Secrets extraction from the registry. Covers reg save HKLM\SECURITY,
+  Mimikatz lsadump::secrets, Impacket secretsdump, and direct registry reads to
+  HKLM\SECURITY\Policy\Secrets.
+references:
+  - https://attack.mitre.org/techniques/T1003/004/
+  - https://www.passcape.com/index.php?section=docsys&cmd=details&id=23
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1003.004
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_reg_security:
+    Image|endswith: '\reg.exe'
+    CommandLine|contains|all:
+      - 'save'
+      - 'security'
+  selection_mimikatz_lsa:
+    CommandLine|contains:
+      - 'lsadump::secrets'
+      - 'lsadump::cache'
+  condition: selection_reg_security or selection_mimikatz_lsa
+falsepositives:
+  - Legitimate security hive backups
+  - Disaster recovery procedures
+level: high

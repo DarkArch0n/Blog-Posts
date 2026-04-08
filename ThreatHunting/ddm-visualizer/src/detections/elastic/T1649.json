@@ -1,0 +1,23 @@
+{
+  "name": "Steal or Forge Authentication Certificates - AD CS Abuse",
+  "description": "Detects AD CS abuse for certificate theft or forgery via Certify, Certipy, ForgeCert, certreq with SAN manipulation, certutil CA backup, and certificate request/issuance events (4886/4887).",
+  "risk_score": 85,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and (process.args : (\"*Certify*\", \"*Certipy*\", \"*ForgeCert*\", \"*PassTheCert*\") or (process.name == \"certreq.exe\" and process.args : \"*SAN:*\") or (process.name == \"certutil.exe\" and process.args : (\"-backup\", \"-exportPFX\", \"-ca.cert\")))",
+  "note": "Complement with: event.code: (\"4886\" or \"4887\") for certificate request/issuance monitoring. Alert when certificate SAN does not match the requesting user.",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [{ "id": "T1649", "name": "Steal or Forge Authentication Certificates" }]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1649/",
+    "https://posts.specterops.io/certified-pre-owned-d95910965cd2"
+  ],
+  "tags": ["Credential Access", "AD CS", "Certificates", "ESC1", "T1649"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*"]
+}

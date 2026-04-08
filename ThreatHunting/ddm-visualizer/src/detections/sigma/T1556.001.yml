@@ -1,0 +1,38 @@
+title: Domain Controller Authentication Modification - Skeleton Key Attack
+id: e1f2a3b4-c5d6-4e7f-8a9b-0c1d2e3f4a5b
+status: experimental
+description: |
+  Detects Skeleton Key attacks on domain controllers by monitoring for suspicious LSASS
+  patching (Mimikatz misc::skeleton), unauthorized DLL injection into lsass.exe, and
+  anomalous authentication patterns where any password authenticates successfully.
+references:
+  - https://attack.mitre.org/techniques/T1556/001/
+  - https://adsecurity.org/?p=1275
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.persistence
+  - attack.t1556.001
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_skeleton_key:
+    CommandLine|contains:
+      - 'misc::skeleton'
+      - 'skeleton'
+      - 'misc::memssp'
+  selection_lsass_patch:
+    TargetImage|endswith: '\lsass.exe'
+    SourceImage|endswith:
+      - '\mimikatz.exe'
+      - '\mimi.exe'
+  selection_sysmon_unsigned_dll:
+    EventID: 7
+    Image|endswith: '\lsass.exe'
+    Signed: 'false'
+  condition: selection_skeleton_key or selection_lsass_patch or selection_sysmon_unsigned_dll
+falsepositives:
+  - Legitimate security products loading into LSASS
+level: critical

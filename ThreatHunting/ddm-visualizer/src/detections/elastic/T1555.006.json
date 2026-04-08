@@ -1,0 +1,28 @@
+{
+  "name": "Cloud Secrets Manager Access - Suspicious Secret Retrieval",
+  "description": "Detects suspicious access to cloud secrets management services: AWS Secrets Manager GetSecretValue, SSM GetParameter with decryption, and bulk secret listing operations.",
+  "risk_score": 50,
+  "severity": "medium",
+  "type": "query",
+  "language": "kuery",
+  "query": "event.dataset: \"aws.cloudtrail\" and event.action: (\"GetSecretValue\" or \"BatchGetSecretValue\" or \"ListSecrets\" or \"GetParameter\" or \"GetParameters\" or \"GetParametersByPath\")",
+  "note": "For Azure Key Vault: event.dataset: 'azure.activitylogs' and azure.activitylogs.operation_name: *KeyVault* and event.action: (SecretGet or SecretList). For GCP: event.dataset: 'gcp.audit' and event.action: *AccessSecretVersion*",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1555",
+          "name": "Credentials from Password Stores",
+          "subtechnique": [{ "id": "T1555.006", "name": "Cloud Secrets Management Stores" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1555/006/"
+  ],
+  "tags": ["Credential Access", "Cloud", "Secrets Manager", "T1555.006"],
+  "index": ["filebeat-*", "logs-aws.cloudtrail-*"]
+}

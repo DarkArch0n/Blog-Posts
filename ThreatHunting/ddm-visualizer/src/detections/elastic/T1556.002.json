@@ -1,0 +1,27 @@
+{
+  "name": "Password Filter DLL - Malicious Password Filter Registration",
+  "description": "Detects registration of malicious password filter DLLs by monitoring for modifications to the LSA Notification Packages registry key. Password filters receive plaintext passwords on every password change.",
+  "risk_score": 85,
+  "severity": "high",
+  "type": "eql",
+  "language": "eql",
+  "query": "registry where event.type == \"change\" and registry.path : \"*Control\\\\Lsa\\\\Notification Packages*\"",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1556",
+          "name": "Modify Authentication Process",
+          "subtechnique": [{ "id": "T1556.002", "name": "Password Filter DLL" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1556/002/"
+  ],
+  "tags": ["Credential Access", "Password Filter", "LSA", "T1556.002"],
+  "index": ["winlogbeat-*", "logs-windows.sysmon_operational-*", "logs-endpoint.events.registry-*"]
+}

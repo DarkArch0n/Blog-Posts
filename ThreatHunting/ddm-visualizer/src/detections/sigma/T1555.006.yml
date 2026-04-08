@@ -1,0 +1,35 @@
+title: Cloud Secrets Manager Access - Suspicious Secret Retrieval
+id: f6a7b8c9-d0e1-4f2a-3b4c-5d6e7f8a9b0c
+status: experimental
+description: |
+  Detects suspicious access to cloud secrets management services: AWS Secrets Manager,
+  Azure Key Vault, GCP Secret Manager. Monitors for bulk secret retrieval, unusual
+  callers, and CLI-based extraction.
+references:
+  - https://attack.mitre.org/techniques/T1555/006/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1555.006
+logsource:
+  product: aws
+  service: cloudtrail
+detection:
+  selection_aws_secrets:
+    eventName:
+      - 'GetSecretValue'
+      - 'BatchGetSecretValue'
+      - 'ListSecrets'
+  selection_aws_ssm:
+    eventName:
+      - 'GetParameter'
+      - 'GetParameters'
+      - 'GetParametersByPath'
+    requestParameters.withDecryption: 'true'
+  condition: selection_aws_secrets or selection_aws_ssm
+falsepositives:
+  - Application runtime secret retrieval
+  - CI/CD pipeline secret access
+  - Configuration management tools
+level: medium

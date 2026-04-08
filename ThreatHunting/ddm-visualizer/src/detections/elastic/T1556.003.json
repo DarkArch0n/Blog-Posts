@@ -1,0 +1,27 @@
+{
+  "name": "Pluggable Authentication Module Modification - PAM Backdoor",
+  "description": "Detects PAM modifications for credential interception or auth bypass. Monitors for PAM config changes, new PAM modules (.so files in security directories), and PAM module compilation.",
+  "risk_score": 90,
+  "severity": "critical",
+  "type": "eql",
+  "language": "eql",
+  "query": "file where event.type : (\"change\", \"creation\") and (file.path : (\"/etc/pam.d/*\", \"/etc/pam.conf\") or (file.path : (\"/lib/security/*.so\", \"/lib64/security/*.so\", \"/usr/lib/security/*.so\", \"/usr/lib64/security/*.so\")))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1556",
+          "name": "Modify Authentication Process",
+          "subtechnique": [{ "id": "T1556.003", "name": "Pluggable Authentication Modules" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1556/003/"
+  ],
+  "tags": ["Credential Access", "PAM", "Linux", "T1556.003"],
+  "index": ["logs-endpoint.events.file-*", "auditbeat-*"]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Chat Message Credential Search - Slack/Teams API Credential Harvesting",
+  "description": "Detects credential harvesting from chat platforms via API. Monitors for Slack search.messages, Microsoft Graph chat message enumeration, and bulk message export operations.",
+  "risk_score": 50,
+  "severity": "medium",
+  "type": "query",
+  "language": "kuery",
+  "query": "event.dataset: \"azure.auditlogs\" and event.action: (*Chat* or *Message*) and event.action: (*List* or *Get* or *Export*)",
+  "note": "For Slack: Monitor Slack Audit API for 'search.messages' events with credential-related search terms. For process-based: process.command_line: (*slack* and *search* and (*password* or *secret* or *key*))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1552",
+          "name": "Unsecured Credentials",
+          "subtechnique": [{ "id": "T1552.008", "name": "Chat Messages" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1552/008/"
+  ],
+  "tags": ["Credential Access", "Chat", "Slack", "Teams", "T1552.008"],
+  "index": ["filebeat-*", "logs-azure.auditlogs-*"]
+}

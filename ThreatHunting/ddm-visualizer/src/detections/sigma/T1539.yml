@@ -1,0 +1,42 @@
+title: Steal Web Session Cookie - Browser Cookie Database Access by Non-Browser Process
+id: e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8a90
+status: experimental
+description: |
+  Detects web session cookie theft by monitoring for non-browser processes accessing
+  browser cookie databases, infostealer malware patterns, EvilGinx2 session cookie
+  capture, and cookie import tool usage.
+references:
+  - https://attack.mitre.org/techniques/T1539/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1539
+logsource:
+  product: windows
+  category: file_access
+detection:
+  selection_cookie_db:
+    TargetFilename|contains:
+      - '\Google\Chrome\User Data\Default\Network\Cookies'
+      - '\Microsoft\Edge\User Data\Default\Network\Cookies'
+      - '\Mozilla\Firefox\Profiles\'
+    TargetFilename|endswith:
+      - 'Cookies'
+      - 'cookies.sqlite'
+  selection_infostealer:
+    CommandLine|contains:
+      - 'SharpChromium'
+      - 'CookieKatz'
+      - 'chrome-cookie'
+      - 'cookie-stealer'
+  filter_browsers:
+    Image|endswith:
+      - '\chrome.exe'
+      - '\msedge.exe'
+      - '\firefox.exe'
+  condition: (selection_cookie_db and not filter_browsers) or selection_infostealer
+falsepositives:
+  - Browser extension processes
+  - Browser profile backup tools
+level: high

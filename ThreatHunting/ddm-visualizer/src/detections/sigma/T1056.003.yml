@@ -1,0 +1,38 @@
+title: Web Portal Credential Capture - Cloned Login Page or Credential Harvester
+id: c9d0e1f2-a3b4-4c5d-6e7f-8a9b0c1d2e3f
+status: experimental
+description: |
+  Detects web portal credential capture via cloned login pages (SET, GoPhish, EvilGinx2)
+  or credential harvesting frameworks. Monitors for common credential harvester tools
+  and suspicious web server processes.
+references:
+  - https://attack.mitre.org/techniques/T1056/003/
+  - https://github.com/kgretzky/evilginx2
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1056.003
+logsource:
+  category: process_creation
+detection:
+  selection_harvest_tools:
+    CommandLine|contains:
+      - 'evilginx'
+      - 'gophish'
+      - 'SET'
+      - 'setoolkit'
+      - 'modlishka'
+      - 'king-phisher'
+      - 'credential_harvester'
+  selection_phishing_frameworks:
+    Image|endswith:
+      - '\evilginx'
+      - '/evilginx'
+      - '\gophish'
+      - '/gophish'
+  condition: selection_harvest_tools or selection_phishing_frameworks
+falsepositives:
+  - Authorized phishing simulation platforms
+  - Security awareness training tools
+level: high

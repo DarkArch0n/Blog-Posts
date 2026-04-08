@@ -1,0 +1,35 @@
+title: Chat Message Credential Search - Slack/Teams API Credential Harvesting
+id: c7d8e9f0-a1b2-4c3d-4e5f-6a7b8c9d0e12
+status: experimental
+description: |
+  Detects credential searching in chat platforms via API calls. Monitors for Slack
+  search.messages API, Microsoft Graph chat message access, and bulk message export
+  operations targeting credentials shared in chat.
+references:
+  - https://attack.mitre.org/techniques/T1552/008/
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1552.008
+logsource:
+  product: azure
+  service: auditlogs
+detection:
+  selection_graph_chats:
+    operationName|contains:
+      - 'Chat'
+      - 'Message'
+    operationName|contains:
+      - 'List'
+      - 'Get'
+  selection_teams_export:
+    operationName|contains:
+      - 'Export'
+      - 'TeamsMessaging'
+  condition: selection_graph_chats or selection_teams_export
+falsepositives:
+  - Legitimate Teams/Slack administration
+  - eDiscovery operations
+  - Compliance scanning
+level: medium

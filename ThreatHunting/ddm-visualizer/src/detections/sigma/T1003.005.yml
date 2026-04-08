@@ -1,0 +1,33 @@
+title: Cached Domain Credentials Access via Registry
+id: a7e8c0f2-d394-4bf4-e571-8ac26jee1b30
+status: experimental
+description: |
+  Detects access to cached domain credentials (DCC2/mscash2) stored in the registry at
+  HKLM\SECURITY\Cache. Covers Mimikatz lsadump::cache, cachedump, and Impacket approaches.
+references:
+  - https://attack.mitre.org/techniques/T1003/005/
+  - https://www.ired.team/offensive-security/credential-access-and-credential-dumping/dumping-and-cracking-mscash-cached-domain-credentials
+author: DDM Visualizer Project
+date: 2026/04/08
+tags:
+  - attack.credential_access
+  - attack.t1003.005
+logsource:
+  product: windows
+  category: registry_access
+detection:
+  selection_cache_key:
+    TargetObject|contains: 'SECURITY\Cache'
+  selection_process:
+    CommandLine|contains:
+      - 'lsadump::cache'
+      - 'cachedump'
+      - 'mscash'
+  filter_system:
+    Image|endswith:
+      - '\lsass.exe'
+      - '\svchost.exe'
+  condition: (selection_cache_key and not filter_system) or selection_process
+falsepositives:
+  - LSASS normal operations reading cached credentials
+level: high

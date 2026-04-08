@@ -1,0 +1,32 @@
+{
+  "name": "Password Spraying - Failed Logons Across Multiple Accounts From Single Source",
+  "description": "Detects password spraying by identifying a single source IP generating failed logon attempts across many distinct accounts. Covers spray attacks via SMB, RDP, OWA, ADFS, and Kerberos.",
+  "risk_score": 70,
+  "severity": "high",
+  "type": "threshold",
+  "language": "kuery",
+  "query": "event.code: (\"4625\" or \"4771\") and winlog.event_data.Status: (\"0xC000006D\" or \"0xC000006A\" or \"0x18\") and not winlog.event_data.TargetUserName: (SYSTEM or HEALTH*)",
+  "threshold": {
+    "field": ["source.ip"],
+    "value": 20,
+    "cardinality": [{ "field": "winlog.event_data.TargetUserName", "value": 15 }]
+  },
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1110",
+          "name": "Brute Force",
+          "subtechnique": [{ "id": "T1110.003", "name": "Password Spraying" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1110/003/"
+  ],
+  "tags": ["Credential Access", "Brute Force", "Password Spraying", "T1110.003"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-system.security*"]
+}

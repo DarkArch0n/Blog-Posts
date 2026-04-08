@@ -1,0 +1,28 @@
+{
+  "name": "Credentials In Files - Suspicious Credential File Search",
+  "description": "Detects credential searching in files using findstr, grep, Select-String, or Snaffler. Monitors for password/secret/key search patterns in configuration files, scripts, and logs.",
+  "risk_score": 50,
+  "severity": "medium",
+  "type": "eql",
+  "language": "eql",
+  "query": "process where event.type == \"start\" and ((process.name == \"findstr.exe\" and process.args : (\"*password*\", \"*secret*\", \"*credential*\", \"*api_key*\", \"*connectionstring*\")) or process.name : (\"Snaffler.exe\", \"snaffler.exe\") or process.args : (\"*trufflehog*\", \"*gitleaks*\") or (process.name : (\"powershell.exe\", \"pwsh.exe\") and process.args : \"*Select-String*\" and process.args : (\"*password*\", \"*secret*\", \"*key*\")))",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access" },
+      "technique": [
+        {
+          "id": "T1552",
+          "name": "Unsecured Credentials",
+          "subtechnique": [{ "id": "T1552.001", "name": "Credentials In Files" }]
+        }
+      ]
+    }
+  ],
+  "references": [
+    "https://attack.mitre.org/techniques/T1552/001/",
+    "https://github.com/SnaffCon/Snaffler"
+  ],
+  "tags": ["Credential Access", "Credential Search", "Files", "T1552.001"],
+  "index": ["winlogbeat-*", "logs-windows.*", "logs-endpoint.events.process-*"]
+}
