@@ -1,0 +1,4 @@
+// Persistence (TA0003)
+// Techniques: T1098, T1197, T1547, T1037, T1176, T1554, T1136, T1543, T1546, T1133,
+//             T1574, T1525, T1556, T1137, T1542, T1053, T1505, T1205, T1078
+export const tactic = { id: "TA0003", name: "Persistence" };

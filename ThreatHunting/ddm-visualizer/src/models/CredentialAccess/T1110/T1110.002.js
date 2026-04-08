@@ -1,0 +1,6 @@
+﻿// T1110.002 - Password Cracking
+// Parent: T1110 - Brute Force
+// Tactic: CredentialAccess
+// Status: Placeholder - no DDM built yet
+
+export default null;

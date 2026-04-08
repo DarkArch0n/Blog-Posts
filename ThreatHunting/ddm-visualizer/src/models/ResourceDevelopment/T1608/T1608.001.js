@@ -1,0 +1,6 @@
+﻿// T1608.001 - Upload Malware
+// Parent: T1608 - Stage Capabilities
+// Tactic: ResourceDevelopment
+// Status: Placeholder - no DDM built yet
+
+export default null;

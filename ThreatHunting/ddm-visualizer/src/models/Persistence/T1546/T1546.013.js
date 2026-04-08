@@ -1,0 +1,6 @@
+﻿// T1546.013 - PowerShell Profile
+// Parent: T1546 - Event Triggered Execution
+// Tactic: Persistence
+// Status: Placeholder - no DDM built yet
+
+export default null;
